@@ -675,13 +675,37 @@ export class AgentOrchestrator {
    */
   _parseStepResponse(response) {
     try {
+      let parsedResponse
       if (typeof response === 'object') {
-        return response
+        parsedResponse = response
+      } else {
+        parsedResponse = JSON.parse(response)
       }
-      return JSON.parse(response)
+
+      // 确保返回格式包含必要的字段
+      const result = {
+        summary:
+          parsedResponse.summary || parsedResponse.content || parsedResponse,
+        details: {}
+      }
+
+      // 将所有其他字段添加到details对象中
+      Object.keys(parsedResponse).forEach(key => {
+        if (key !== 'summary') {
+          result.details[key] = parsedResponse[key]
+        }
+      })
+
+      return result
     } catch (error) {
-      // 如果无法解析JSON，返回原始响应作为摘要
-      return {summary: response, details: response}
+      // 如果无法解析JSON，构建包含summary和details的标准响应
+      return {
+        summary: String(response),
+        details: {
+          rawResponse: String(response),
+          note: '响应格式不是有效的JSON'
+        }
+      }
     }
   }
 
