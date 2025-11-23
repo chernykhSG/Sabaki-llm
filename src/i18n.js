@@ -120,7 +120,7 @@ function getI18nDirectory() {
   if (isElectron && app) {
     // 开发环境
     if (process.env.NODE_ENV === 'development') {
-      return path.join(__dirname, '..', 'i18n')
+      return path.join(__dirname, '', 'i18n')
     }
     // 生产环境 - 使用应用目录
     return path.join(app.getAppPath(), 'i18n')
@@ -161,23 +161,22 @@ function scanAndLoadLanguageFile() {
 }
 
 // 初始化语言加载顺序：
-// 1. 优先加载保存的语言文件路径（用户手动选择的）
-// 2. 扫描i18n文件夹自动加载匹配的语言文件
+// 1. 优先扫描i18n文件夹自动加载匹配的语言文件
+// 2. 如果扫描失败，尝试加载保存的语言文件路径（用户手动选择的）
 // 3. 回退到使用语言代码加载默认语言包
-if (langFilePath != null && typeof langFilePath === 'string') {
-  try {
-    exports.loadFile(langFilePath)
-  } catch (err) {
-    // 如果加载失败，尝试扫描i18n文件夹
-    if (!scanAndLoadLanguageFile() && appLang != null) {
-      // 如果扫描也失败，回退到默认语言加载
-      exports.loadLang(appLang)
+if (!scanAndLoadLanguageFile()) {
+  // 如果扫描失败，尝试加载保存的语言文件路径
+  if (langFilePath != null && typeof langFilePath === 'string') {
+    try {
+      exports.loadFile(langFilePath)
+    } catch (err) {
+      // 如果加载保存的文件也失败，回退到默认语言加载
+      if (appLang != null) {
+        exports.loadLang(appLang)
+      }
     }
-  }
-} else {
-  // 没有保存的语言文件路径，直接扫描i18n文件夹
-  if (!scanAndLoadLanguageFile() && appLang != null) {
-    // 如果扫描失败，回退到默认语言加载
+  } else if (appLang != null) {
+    // 没有保存的语言文件路径，回退到默认语言加载
     exports.loadLang(appLang)
   }
 }

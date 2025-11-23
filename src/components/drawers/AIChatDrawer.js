@@ -1236,14 +1236,7 @@ export default class AIChatDrawer extends Drawer {
           {
             value: this.state.agentSystemLevel,
             onChange: this.handleAgentSystemLevelChange,
-            style: {
-              marginLeft: '10px',
-              padding: '4px 8px',
-              border: '1px solid #ccc',
-              borderRadius: '3px',
-              fontSize: '12px',
-              backgroundColor: 'white'
-            }
+            className: 'agent-system-level-select'
           },
           h('option', {value: '0'}, 'Level 0: 核心推理'),
           h('option', {value: '1'}, 'Level 1: 连接工具'),
