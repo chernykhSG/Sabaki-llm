@@ -21,6 +21,10 @@ export default class AIChatDrawer extends Drawer {
     )
     const savedHumanCollaboration =
       localStorage.getItem('sabaki-ai-human-collaboration') === 'true'
+    // 从localStorage读取保存的智能体系统级别
+    const savedAgentSystemLevel =
+      localStorage.getItem('sabaki-agent-system-level') || '0'
+
     this.state = {
       messages: [],
       input: '',
@@ -38,6 +42,8 @@ export default class AIChatDrawer extends Drawer {
       agentStatus: AGENT_STATES.IDLE,
       executionStats: null,
       humanCollaborationEnabled: savedHumanCollaboration,
+      // 智能体系统级别
+      agentSystemLevel: savedAgentSystemLevel,
       // 五步问题解决流程相关状态
       fiveStepProcessState: {
         isActive: false,
@@ -60,6 +66,9 @@ export default class AIChatDrawer extends Drawer {
       this.state.humanCollaborationEnabled
     )
 
+    // 设置智能体系统级别
+    this.setAgentSystemLevel(this.state.agentSystemLevel)
+
     // 添加状态监听器
     this.agentOrchestrator.addStateListener(
       this.handleAgentStateChange.bind(this)
@@ -81,6 +90,10 @@ export default class AIChatDrawer extends Drawer {
     localStorage.setItem(
       'sabaki-ai-human-collaboration',
       this.state.humanCollaborationEnabled.toString()
+    )
+    localStorage.setItem(
+      'sabaki-agent-system-level',
+      this.state.agentSystemLevel
     )
 
     // 清理监听器
@@ -392,6 +405,76 @@ export default class AIChatDrawer extends Drawer {
         agentStatus: AGENT_STATES.IDLE
       })
     }
+  }
+
+  /**
+   * 设置智能体系统级别
+   */
+  setAgentSystemLevel = level => {
+    // 根据不同级别配置智能体行为
+    switch (level) {
+      case '0':
+        // Level 0: 核心推理系统 - 仅使用基础语言模型
+        this.agentOrchestrator.setToolUsageEnabled(false)
+        this.agentOrchestrator.setPlanningEnabled(false)
+        break
+      case '1':
+        // Level 1: 连接型问题解决者 - 启用工具但不启用高级规划
+        this.agentOrchestrator.setToolUsageEnabled(true)
+        this.agentOrchestrator.setPlanningEnabled(false)
+        break
+      case '2':
+        // Level 2: 策略型问题解决者 - 启用工具和基础规划
+        this.agentOrchestrator.setToolUsageEnabled(true)
+        this.agentOrchestrator.setPlanningEnabled(true)
+        break
+      case '3':
+        // Level 3: 协作式多智能体系统 - 启用工具、规划和多智能体协作
+        this.agentOrchestrator.setToolUsageEnabled(true)
+        this.agentOrchestrator.setPlanningEnabled(true)
+        this.agentOrchestrator.setMultiAgentEnabled(true)
+        break
+      case '4':
+        // Level 4: 自进化系统 - 启用所有高级功能
+        this.agentOrchestrator.setToolUsageEnabled(true)
+        this.agentOrchestrator.setPlanningEnabled(true)
+        this.agentOrchestrator.setMultiAgentEnabled(true)
+        this.agentOrchestrator.setSelfEvolvingEnabled(true)
+        break
+    }
+  }
+
+  /**
+   * 处理智能体系统级别变化
+   */
+  handleAgentSystemLevelChange = event => {
+    const newLevel = event.target.value
+    this.setState({agentSystemLevel: newLevel})
+    localStorage.setItem('sabaki-agent-system-level', newLevel)
+    this.setAgentSystemLevel(newLevel)
+
+    // 添加一条消息说明级别变化
+    const levelInfo = {
+      '0':
+        '核心推理系统 (Level 0) - 仅包含基础语言模型，无工具、记忆或实时环境交互能力',
+      '1':
+        '连接型问题解决者 (Level 1) - 可通过工具获取实时/外部数据，突破预训练知识局限',
+      '2':
+        '策略型问题解决者 (Level 2) - 具备复杂目标的战略规划能力，可完成多步骤任务',
+      '3': '协作式多智能体系统 (Level 3) - 由专业智能体团队协作完成复杂任务',
+      '4':
+        '自进化系统 (Level 4) - 具备自主扩展能力，可识别自身能力缺口并动态创建新工具或智能体'
+    }
+
+    this.setState(prevState => ({
+      messages: [
+        ...prevState.messages,
+        {
+          role: 'system',
+          content: `已切换至${levelInfo[newLevel]}`
+        }
+      ]
+    }))
   }
 
   /**
@@ -1148,6 +1231,26 @@ export default class AIChatDrawer extends Drawer {
         'div',
         {class: 'drawer-header'},
         t('AI Assistant'),
+        h(
+          'select',
+          {
+            value: this.state.agentSystemLevel,
+            onChange: this.handleAgentSystemLevelChange,
+            style: {
+              marginLeft: '10px',
+              padding: '4px 8px',
+              border: '1px solid #ccc',
+              borderRadius: '3px',
+              fontSize: '12px',
+              backgroundColor: 'white'
+            }
+          },
+          h('option', {value: '0'}, 'Level 0: 核心推理'),
+          h('option', {value: '1'}, 'Level 1: 连接工具'),
+          h('option', {value: '2'}, 'Level 2: 策略规划'),
+          h('option', {value: '3'}, 'Level 3: 多智能体协作'),
+          h('option', {value: '4'}, 'Level 4: 自进化系统')
+        ),
         h(
           'div',
           {class: 'drawer-actions'},

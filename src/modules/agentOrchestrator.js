@@ -63,9 +63,14 @@ export class AgentOrchestrator {
     }
 
     // 工具控制配置
+    // 工具控制配置
     this.toolConfig = {
       includeBoardContext: true, // 控制是否包含boardContext数据
-      boardContextMaxLength: 1000 // boardContext最大长度限制
+      boardContextMaxLength: 1000, // boardContext最大长度限制
+      toolUsageEnabled: true, // 是否启用工具使用
+      planningEnabled: true, // 是否启用规划能力
+      multiAgentEnabled: false, // 是否启用多智能体协作
+      selfEvolvingEnabled: false // 是否启用自进化能力
     }
 
     this.boardDisplayState = {
@@ -230,9 +235,10 @@ export class AgentOrchestrator {
       timestamp: Date.now()
     })
 
-    // 如果启用了人机协作，使用五步问题解决流程
+    // 如果启用了人机协作且工具配置支持规划，使用五步问题解决流程
     if (
       this.humanCollaborationEnabled &&
+      this.toolConfig.planningEnabled &&
       options.enableFiveStepProcess !== false
     ) {
       this._emitStateChange(AGENT_STATES.THINKING)
@@ -525,6 +531,18 @@ export class AgentOrchestrator {
    * 执行思考规划步骤
    */
   async _executePlanning(step, processContext) {
+    // 获取MCP工具列表
+    let toolsListJson = '[]'
+    let toolsInfo = ''
+    if (this.toolConfig.toolUsageEnabled) {
+      toolsListJson = this.formatToolsList(true, false, true)
+      toolsInfo = `\n\n可用工具列表:\n${JSON.stringify(
+        toolsListJson,
+        null,
+        2
+      )}\n`
+    }
+
     const prompt = `
 任务：${processContext.userMessage}
 
@@ -534,18 +552,26 @@ export class AgentOrchestrator {
 
 环境感知结果：${JSON.stringify(
       processContext.stepResults.environment_perception || {}
-    )}
+    )}${toolsInfo}
 
 请按照以下步骤制定解决方案：
 1. 基于任务和环境分析提出解决思路
-2. 设计具体的执行步骤和方法
+2. 设计具体的执行步骤和方法${
+      this.toolConfig.toolUsageEnabled ? '，包括可能需要使用的工具' : ''
+    }
 3. 评估可能的风险和替代方案
-4. 制定详细的行动计划
+4. 制定详细的行动计划${
+      this.toolConfig.toolUsageEnabled
+        ? '，对于需要调用工具的步骤，请明确指定工具名称和参数'
+        : ''
+    }
 
 输出要求：
 - summary: 解决方案摘要（1-2句话）
 - details: 详细的解决方案
-- executionSteps: 具体执行步骤列表
+- executionSteps: 具体执行步骤列表${
+      this.toolConfig.toolUsageEnabled ? '，包含可能的toolCall对象' : ''
+    }
 - potentialRisks: 潜在风险及应对措施
 `
 
@@ -561,7 +587,7 @@ export class AgentOrchestrator {
    * 执行执行行动步骤
    */
   async _executeActions(step, processContext) {
-    const planningResult = processContext.stepResults.planning
+    const planningResult = processContext.stepResults.planning.details
     if (!planningResult || !planningResult.executionSteps) {
       return {error: '缺少执行步骤计划'}
     }
@@ -927,13 +953,15 @@ export class AgentOrchestrator {
   }
 
   async _executeTool(toolInfo) {
-    this.agentState.history.push({
+    const info = {
       type: 'tool_call',
       content: toolInfo,
-      timestamp: Date.now()
-    })
+      timestamp: Date.now(),
+      ...toolInfo.mcp.tool
+    }
+    this.agentState.history.push(info)
 
-    const validatedToolInfo = this._validateToolParameters(toolInfo)
+    const validatedToolInfo = this._validateToolParameters(info)
 
     // 获取gameContext，添加空值检查
     const gameContext = this.agentState.conversationContext?.gameContext || null
@@ -1043,6 +1071,34 @@ export class AgentOrchestrator {
     }
   }
 
+  /**
+   * 设置是否启用工具使用
+   */
+  setToolUsageEnabled(enabled) {
+    this.toolConfig.toolUsageEnabled = enabled
+  }
+
+  /**
+   * 设置是否启用规划能力
+   */
+  setPlanningEnabled(enabled) {
+    this.toolConfig.planningEnabled = enabled
+  }
+
+  /**
+   * 设置是否启用多智能体协作
+   */
+  setMultiAgentEnabled(enabled) {
+    this.toolConfig.multiAgentEnabled = enabled
+  }
+
+  /**
+   * 设置是否启用自进化能力
+   */
+  setSelfEvolvingEnabled(enabled) {
+    this.toolConfig.selfEvolvingEnabled = enabled
+  }
+
   _validateToolParameters(toolInfo) {
     const validatedParams = {...toolInfo}
     const availableTools = this.getAvailableTools()
@@ -1131,6 +1187,9 @@ export class AgentOrchestrator {
 
   // 根据工具类型获取可用工具
   getAvailableTools(toolType = null) {
+    if (!this.toolConfig.toolUsageEnabled) {
+      return []
+    }
     const endpoints = mcpHelper.getAvailableEndpoints()
 
     // 确保每个工具都有类型标识，如果没有则默认为函数工具
@@ -1331,7 +1390,10 @@ export class AgentOrchestrator {
 
   _buildThoughtPrompt() {
     // MCP协议要求使用JSON格式的工具列表
-    const toolsListJson = this.formatToolsList(true, false, true)
+    let toolsListJson = '[]'
+    if (this.toolConfig.toolUsageEnabled) {
+      toolsListJson = this.formatToolsList(true, false, true)
+    }
     const {lastToolResult} = this.agentState.conversationContext || {}
 
     // 构建符合MCP协议的提示

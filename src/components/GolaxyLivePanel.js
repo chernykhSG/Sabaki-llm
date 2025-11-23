@@ -2,8 +2,6 @@ import {h, Component} from 'preact'
 import i18n from '../i18n.js'
 import {getLiveReports, syncGolaxyOrYikeLizban, golaxy} from './golaxy.js'
 
-const t = i18n.context('GolaxyLivePanel')
-
 export default class GolaxyLivePanel extends Component {
   constructor(props) {
     super(props)
@@ -13,6 +11,7 @@ export default class GolaxyLivePanel extends Component {
       isLoading: false,
       selectedGame: null,
       isSyncing: false,
+      isSyncButtonClicked: false,
       syncingGameId: null,
       lastMove: null
     }
@@ -42,48 +41,18 @@ export default class GolaxyLivePanel extends Component {
     this.setState({selectedGame: game})
   }
 
-  handleSyncGame = async () => {
+  handleSyncToBoard = async () => {
     if (!this.state.selectedGame) return
 
-    this.setState({isSyncing: true})
-    // 根据棋局是否结束决定is_live参数
-    const is_live = this.state.selectedGame.liveStatus === 0
     const game_id = this.state.selectedGame.liveId
 
-    this.setState({syncingGameId: game_id})
+    this.setState({syncingGameId: game_id, isSyncButtonClicked: true})
 
-    // 同步游戏并获取SGF内容
-    if (is_live) {
-      await syncGolaxyOrYikeLizban([game_id], is_live)
-      const [
-        game,
-        title,
-        PB,
-        PW,
-        RE,
-        DT,
-        totalMoves,
-        lastMove
-      ] = golaxy.getPropsBySgfStr(golaxy.sgf)
-      this.setState({lastMove})
-      if (RE === 'Unknown Result') {
-        golaxy.startSync(game_id, totalMoves, lastMove, PB, PW)
-      }
-    }
+    const url = `${golaxy.golaxyLiveUrl}/${game_id}`
+    const sgfContent = await golaxy.getSgfByGolaxy(url)
 
-    // 获取SGF内容并加载到棋盘
-    else {
-      const url = `${golaxy.golaxyLiveUrl}/${game_id}`
-      const sgfContent = await golaxy.getSgfByGolaxy(url)
-
-      if (sgfContent) {
-        await golaxy.syncSgf(game_id, sgfContent)
-
-        // 只有直播中的棋局才开始实时同步
-        if (is_live) {
-        }
-      }
-      this.setState({isSyncing: false})
+    if (sgfContent) {
+      await golaxy.syncSgf(game_id, sgfContent)
     }
   }
 
@@ -91,8 +60,29 @@ export default class GolaxyLivePanel extends Component {
     golaxy.stopSync()
     this.setState({selectedGame: null})
     this.setState({isSyncing: false})
+    this.setState({isSyncButtonClicked: false})
     this.setState({syncingGameId: null})
     this.setState({lastMove: null})
+  }
+
+  syncLiveGame = async (is_live = true) => {
+    const game_id = this.state.selectedGame.liveId
+    await syncGolaxyOrYikeLizban([game_id], is_live)
+    const [
+      game,
+      title,
+      PB,
+      PW,
+      RE,
+      DT,
+      totalMoves,
+      lastMove
+    ] = golaxy.getPropsBySgfStr(golaxy.sgf)
+    this.setState({lastMove})
+    if (RE === 'Unknown Result') {
+      golaxy.startSync(game_id, totalMoves, lastMove, PB, PW)
+      this.setState({isSyncing: true})
+    }
   }
 
   render() {
@@ -202,23 +192,29 @@ export default class GolaxyLivePanel extends Component {
                 'button',
                 {
                   className: 'sync-button',
-                  onClick: this.handleSyncGame,
-                  disabled: isSyncing
+                  onClick: this.state.isSyncButtonClicked
+                    ? isSyncing
+                      ? this.handleStopSync
+                      : this.syncLiveGame
+                    : this.handleSyncToBoard
                 },
-                isSyncing
-                  ? i18n.t('golaxy', 'Syncing...')
-                  : i18n.t('golaxy', 'Sync to board')
-              ),
-              // 只有直播中的棋局才显示停止同步按钮
-              selectedGame.liveStatus === 0 &&
-                h(
-                  'button',
-                  {
-                    className: 'stop-sync-button',
-                    onClick: () => this.handleStopSync()
-                  },
-                  i18n.t('golaxy', 'Stop sync')
+                i18n.t(
+                  'golaxy',
+                  this.state.isSyncButtonClicked
+                    ? isSyncing
+                      ? 'Stop sync'
+                      : 'Start sync'
+                    : 'Sync to board'
                 )
+              ),
+              h(
+                'button',
+                {
+                  className: 'refresh-button',
+                  onClick: () => this.fetchLiveGames()
+                },
+                i18n.t('golaxy', 'Refresh list')
+              )
             ].filter(Boolean)
           : h(
               'button',
