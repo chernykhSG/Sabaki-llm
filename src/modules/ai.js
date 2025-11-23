@@ -58,14 +58,11 @@ class AIHelper {
 
     // 使用get-game-info工具获取棋局信息
     let gameInfo = ''
-    const result_tool = await agentOrchestrator._executeTool(
-      {
-        name: 'get-game-info',
-        type: 'info_retrieval',
-        parameters: {format: 'text'}
-      },
-      gameContext
-    )
+    const result_tool = await agentOrchestrator._executeTool({
+      name: 'get-game-info',
+      type: 'info_retrieval',
+      parameters: {format: 'text'}
+    })
     if (result_tool && result_tool.success && result_tool.content) {
       gameInfo = result_tool.content + '\n\n'
     }

@@ -953,11 +953,13 @@ export class AgentOrchestrator {
   }
 
   async _executeTool(toolInfo) {
+    // 兼容直接传递工具信息和嵌套在mcp.tool中的两种格式
+    const toolData = toolInfo.mcp?.tool || toolInfo
     const info = {
       type: 'tool_call',
       content: toolInfo,
       timestamp: Date.now(),
-      ...toolInfo.mcp.tool
+      ...toolData
     }
     this.agentState.history.push(info)
 
