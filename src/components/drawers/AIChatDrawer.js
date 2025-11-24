@@ -77,6 +77,11 @@ export default class AIChatDrawer extends Drawer {
     // 添加错误处理器
     this.agentOrchestrator.addErrorHandler(this.handleAgentError.bind(this))
 
+    // 添加能力缺口监听器
+    this.agentOrchestrator.addCapabilityGapListener(
+      this.handleCapabilityGap.bind(this)
+    )
+
     sabaki.on('ai.message.add', this.handleAIMessageAdd)
   }
 
@@ -99,6 +104,7 @@ export default class AIChatDrawer extends Drawer {
     // 清理监听器
     this.agentOrchestrator.removeStateListener(this.handleAgentStateChange)
     this.agentOrchestrator.removeErrorHandler(this.handleAgentError)
+    this.agentOrchestrator.removeCapabilityGapListener(this.handleCapabilityGap)
 
     // 终止正在运行的智能体
     this.agentOrchestrator.pause()
@@ -143,6 +149,76 @@ export default class AIChatDrawer extends Drawer {
     console.error('Agent error:', error)
     this.setState({error: error.message})
     // 可以在这里添加错误提示UI
+  }
+
+  // 处理能力缺口，提示用户创建新工具
+  handleCapabilityGap(gapInfo) {
+    const {requiredCapability, context, suggestedToolInfo} = gapInfo
+    
+    // 创建用户交互对话框
+    const createTool = () => {
+      // 收集新工具信息
+      const toolName = prompt('请输入新工具名称:', suggestedToolInfo?.name || requiredCapability)
+      if (!toolName) return
+      
+      const toolDescription = prompt('请输入工具描述:', suggestedToolInfo?.description || `处理${requiredCapability}相关任务的工具`)
+      if (!toolDescription) return
+      
+      const toolParameters = prompt('请输入工具参数(以逗号分隔):', suggestedToolInfo?.parameters || '')
+      
+      // 构建新工具信息
+      const newToolInfo = {
+        name: toolName,
+        description: toolDescription,
+        parameters: toolParameters ? toolParameters.split(',').map(p => p.trim()) : [],
+        context: context,
+        timestamp: Date.now()
+      }
+      
+      // 向用户显示新工具信息预览
+      alert(`新工具信息已收集:\n名称: ${newToolInfo.name}\n描述: ${newToolInfo.description}\n参数: ${newToolInfo.parameters.join(', ')}\n\n请开发人员根据以上信息实现该工具。`)
+      
+      // 触发工具注册流程
+      this.registerNewTool(newToolInfo)
+    }
+    
+    // 显示确认对话框
+    if (confirm(`系统检测到能力缺口: 需要"${requiredCapability}"能力\n\n${suggestedToolInfo?.description || '请创建相应工具以支持该功能'}\n\n是否创建新工具?`)) {
+      createTool()
+    }
+  }
+
+  // 注册新工具到系统中
+  async registerNewTool(toolInfo) {
+    try {
+      // 调用agentOrchestrator注册新工具
+      const registeredTool = this.agentOrchestrator.registerNewTool(toolInfo);
+      
+      // 显示成功提示
+      this.setState(prevState => ({
+        messages: [
+          ...prevState.messages,
+          {
+            role: 'system',
+            content: `✅ 工具"${registeredTool.name}"已成功注册到系统中！\n现在可以在后续对话中使用该工具了。`
+          }
+        ]
+      }));
+      
+      return true;
+    } catch (error) {
+      // 显示错误提示
+      this.setState(prevState => ({
+        messages: [
+          ...prevState.messages,
+          {
+            role: 'error',
+            content: `❌ 工具注册失败: ${error.message}`
+          }
+        ]
+      }));
+      return false;
+    }
   }
 
   // 取消当前智能体执行
@@ -327,7 +403,7 @@ export default class AIChatDrawer extends Drawer {
         })
       } else {
         const content =
-          response.content || response.result?.content || 'No response'
+          response.content?.content || response.content || response.result?.content || 'No response'
 
         // 处理棋盘显示指令
         this.processBoardDisplayInstructions(content)

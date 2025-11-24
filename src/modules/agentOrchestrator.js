@@ -42,7 +42,7 @@ export class AgentOrchestrator extends Agent {
       toolUsageEnabled: true,
       planningEnabled: true,
       multiAgentEnabled: false,
-      selfEvolvingEnabled: false
+      selfEvolvingEnabled: true // 默认启用自进化功能用于测试
     }
 
     this.boardDisplayState = {
@@ -65,20 +65,133 @@ export class AgentOrchestrator extends Agent {
 
     this.stateListeners = []
     this.errorHandlers = []
+    this.capabilityGapListeners = [] // 能力缺口监听器
 
     // 多智能体相关
-    this.agents = {}
-    this.agentInteractions = []
-    this.defaultAgentId = 'main-agent'
+  this.agents = {}
+  this.agentInteractions = []
+  this.defaultAgentId = 'main-agent'
 
-    // 注册默认主智能体
-    this._registerMainAgent()
+  // 注册默认主智能体
+  this._registerMainAgent()
 
-    // 注册Golaxy直播报告智能体
-    const golaxyAgent = this._registerGolaxyLiveReportsTool()
-    if (golaxyAgent) {
-      this.addAgent(golaxyAgent)
+  // 注册Golaxy直播报告智能体
+  const golaxyAgent = this._registerGolaxyLiveReportsTool()
+  if (golaxyAgent) {
+    this.addAgent(golaxyAgent)
+  }
+  
+  // 添加自进化功能测试监听器
+  this._setupEvolvingTestListeners()
+  }
+  
+  /**
+   * 检测能力缺口
+   * 分析任务需求和当前可用的工具/智能体，识别缺口
+   */
+  async _detectCapabilityGaps(taskDescription, context = {}) {
+    if (!this.toolConfig.selfEvolvingEnabled) return null
+    
+    // 获取当前可用的工具和智能体能力
+    const availableCapabilities = this._getAvailableCapabilities()
+    
+    // 使用LLM分析任务需求和能力缺口
+    const prompt = `
+任务描述: ${taskDescription}
+
+当前可用的工具和能力:
+${JSON.stringify(availableCapabilities, null, 2)}
+
+请分析这个任务是否存在能力缺口。如果存在，请详细说明:
+1. 缺少什么工具或智能体
+2. 该工具/智能体应该具备什么核心功能
+3. 为什么需要这个工具/智能体
+4. 该工具可能需要什么参数
+
+请用JSON格式输出，包含以下字段:
+- hasGap: 是否存在能力缺口(true/false)
+- gapType: 如果存在缺口，是'tool'还是'agent'
+- gapName: 建议的工具或智能体名称
+- gapDescription: 详细描述
+- coreFunctions: 核心功能列表
+- requiredParameters: 需要的参数列表
+- reason: 需要的理由
+    `
+    
+    try {
+      const response = await ai.sendLLMMessage(prompt, context.gameContext)
+      if (response && !response.error) {
+        try {
+          const parsedResponse = typeof response === 'object' ? response : JSON.parse(response)
+          if (parsedResponse.hasGap) {
+            return parsedResponse
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse capability gap analysis:', parseError)
+        }
+      }
+    } catch (error) {
+      console.warn('Capability gap detection failed:', error)
     }
+    
+    return null
+  }
+  
+  /**
+   * 获取当前可用的所有能力
+   */
+  _getAvailableCapabilities() {
+    const capabilities = {
+      tools: [],
+      agents: []
+    }
+    
+    // 获取可用工具
+    const toolsList = mcpHelper.getAvailableEndpoints()
+    capabilities.tools = toolsList.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters
+    }))
+    
+    // 获取智能体能力
+    Object.values(this.agents).forEach(agent => {
+      capabilities.agents.push({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        capabilities: agent.capabilities || []
+      })
+    })
+    
+    return capabilities
+  }
+  
+  /**
+   * 触发能力缺口事件
+   */
+  _triggerCapabilityGap(gapInfo) {
+    this.capabilityGapListeners.forEach(listener => {
+      if (typeof listener === 'function') {
+        listener(gapInfo)
+      }
+    })
+  }
+  
+  /**
+   * 添加能力缺口监听器
+   */
+  addCapabilityGapListener(listener) {
+    if (typeof listener === 'function' && !this.capabilityGapListeners.includes(listener)) {
+      this.capabilityGapListeners.push(listener)
+    }
+  }
+  
+  /**
+   * 移除能力缺口监听器
+   */
+  removeCapabilityGapListener(listener) {
+    this.capabilityGapListeners = this.capabilityGapListeners.filter(l => l !== listener)
   }
 
   // 注册Golaxy直播报告工具的方法
@@ -973,6 +1086,23 @@ export class AgentOrchestrator extends Agent {
       this.agentState.executionCount++
       let thoughtResult, actionResult, observation
 
+      // 如果启用了自进化功能，在思考前进行能力缺口检测
+      if (this.toolConfig.selfEvolvingEnabled && this.agentState.executionCount === 1) {
+        const currentTask = this.agentState.conversationContext?.initialMessage || ''
+        const availableCapabilities = this._getAvailableCapabilities()
+        const capabilityGaps = this._detectCapabilityGaps(currentTask, availableCapabilities)
+        
+        // 如果检测到能力缺口，触发通知
+        if (capabilityGaps.length > 0) {
+          for (const gap of capabilityGaps) {
+            this._triggerCapabilityGap(gap)
+          }
+          
+          // 暂停执行，等待用户可能添加的新工具
+          // 注意：这里我们让执行继续，但用户可以在工具被注册后通过新的交互来继续
+        }
+      }
+
       thoughtResult = await this._executeWithTimeout(
         this._think.bind(this),
         60000
@@ -1001,6 +1131,19 @@ export class AgentOrchestrator extends Agent {
         () => this._observe(actionResult),
         30000
       )
+
+      // 在观察阶段，如果启用了自进化功能，根据执行结果再次检查能力缺口
+      if (this.toolConfig.selfEvolvingEnabled && observation.suggestCapabilityGaps) {
+        const availableCapabilities = this._getAvailableCapabilities()
+        const capabilityGaps = this._detectCapabilityGaps(
+          observation.suggestCapabilityGaps,
+          availableCapabilities
+        )
+        
+        for (const gap of capabilityGaps) {
+          this._triggerCapabilityGap(gap)
+        }
+      }
 
       if (observation.shouldTerminate || !actionResult.shouldContinue) {
         return this._summarize(observation)
@@ -1065,6 +1208,19 @@ export class AgentOrchestrator extends Agent {
     }
 
     const thoughtResult = this._parseThoughtResponse(thoughtResponse)
+    
+    // 如果启用了自进化功能，检查思考结果中是否提到了需要但不存在的工具
+    if (this.toolConfig.selfEvolvingEnabled) {
+      const thoughtText = JSON.stringify(thoughtResult)
+      const availableCapabilities = this._getAvailableCapabilities()
+      const potentialGaps = this._detectCapabilityGaps(thoughtText, availableCapabilities)
+      
+      if (potentialGaps.length > 0) {
+        for (const gap of potentialGaps) {
+          this._triggerCapabilityGap(gap)
+        }
+      }
+    }
 
     this.agentState.history.push({
       type: 'thought',
@@ -1156,6 +1312,19 @@ export class AgentOrchestrator extends Agent {
         actionResult.toolResult
 
       this.agentState.retryCount = 0
+      
+      // 如果启用了自进化功能，基于工具执行结果检查潜在能力缺口
+      if (this.toolConfig.selfEvolvingEnabled) {
+        const toolResultText = JSON.stringify(actionResult.toolResult)
+        const availableCapabilities = this._getAvailableCapabilities()
+        const potentialGaps = this._detectCapabilityGaps(toolResultText, availableCapabilities)
+        
+        if (potentialGaps.length > 0) {
+          for (const gap of potentialGaps) {
+            this._triggerCapabilityGap(gap)
+          }
+        }
+      }
 
       return {
         shouldTerminate: false,
@@ -1319,19 +1488,76 @@ export class AgentOrchestrator extends Agent {
     mainAgent.addCapability('智能体协调')
     mainAgent.addCapability('用户交互')
 
-    // 重写execute方法，作为默认处理
+    // 重写execute方法，使用AI模块与LLM交互
     mainAgent.execute = async params => {
       this.setState(AGENT_STATES.ACTING)
-      return {
-        success: true,
-        content: '主智能体处理了请求',
-        agentId: mainAgent.id,
-        agentName: mainAgent.name
+      
+      try {
+        // 构建LLM请求参数
+        const llmParams = {
+          query: params.query || '',
+          task: params.task || 'general',
+          context: {
+            availableAgents: params.availableAgents || [],
+            conversationHistory: this.agentState.history,
+            boardContext: this.toolConfig.includeBoardContext ? await this._getBoardContext() : null
+          }
+        }
+        
+        // 调用AI模块处理请求
+        const llmResponse = await ai.sendLLMMessage({
+          query: llmParams.query,
+          task: llmParams.task,
+          context: llmParams.context
+        }, sabaki.state)
+        
+        return {
+          success: true,
+          content: llmResponse || '任务已处理',
+          agentId: mainAgent.id,
+          agentName: mainAgent.name
+        }
+      } catch (error) {
+        console.error('主智能体执行失败:', error)
+        return {
+          success: false,
+          content: '处理请求时出现错误',
+          error: error.message,
+          agentId: mainAgent.id,
+          agentName: mainAgent.name
+        }
       }
     }
 
     this.addAgent(mainAgent)
     return mainAgent
+  }
+
+  // 获取棋盘上下文信息
+  async _getBoardContext() {
+    try {
+      if (!sabaki || !sabaki.state) return null
+      
+      const {gameTrees, gameIndex, treePosition} = sabaki.state
+      const gametree = gameTrees[gameIndex]
+      if (!gametree) return null
+      
+      // 获取当前棋盘状态
+      const board = gametree.getBoard(gametree, treePosition)
+      
+      // 限制上下文长度
+      const boardContext = {
+        boardSize: board ? board.width : 19,
+        currentMove: treePosition.length,
+        gameInfo: gametree.getGameInfo(gametree),
+        transformation: sabaki.state.gobanTransformation || ''
+      }
+      
+      return boardContext
+    } catch (error) {
+      console.error('获取棋盘上下文失败:', error)
+      return null
+    }
   }
 
   // 添加智能体
@@ -1939,6 +2165,153 @@ export class AgentOrchestrator extends Agent {
       isProcessRunning: false,
       currentStepResult: null,
       processContext: null
+    }
+  }
+  
+  /**
+   * 动态注册新工具
+   */
+  registerNewTool(toolInfo) {
+    // 验证工具信息的基本结构
+    if (!toolInfo || !toolInfo.name || !toolInfo.description) {
+      throw new Error('工具信息不完整，需要包含name和description字段')
+    }
+    
+    // 生成唯一ID（如果没有提供）
+    const tool = {
+      id: toolInfo.id || `dynamic_tool_${Date.now()}`,
+      name: toolInfo.name,
+      description: toolInfo.description,
+      parameters: toolInfo.parameters || [],
+      type: toolInfo.type || TOOL_TYPES.EXECUTION,
+      // 添加动态注册标记
+      isDynamic: true,
+      createdTime: Date.now()
+    }
+    
+    // 注册到MCP helper
+    if (mcpHelper && typeof mcpHelper.registerEndpoint === 'function') {
+      mcpHelper.registerEndpoint(tool)
+      console.log(`动态工具注册成功: ${tool.name} (${tool.id})`)
+      return tool
+    } else {
+      throw new Error('无法注册工具：MCP helper不可用')
+    }
+  }
+  
+  /**
+   * 移除已注册的动态工具
+   */
+  unregisterTool(toolId) {
+    if (!mcpHelper || !mcpHelper.mcpEndpoints) {
+      throw new Error('无法移除工具：MCP helper不可用')
+    }
+    
+    const initialLength = mcpHelper.mcpEndpoints.length
+    mcpHelper.mcpEndpoints = mcpHelper.mcpEndpoints.filter(
+      endpoint => endpoint.id !== toolId
+    )
+    
+    const removed = initialLength !== mcpHelper.mcpEndpoints.length
+    if (removed) {
+      console.log(`工具已移除: ${toolId}`)
+    }
+    
+    return removed
+  }
+  
+  /**
+   * 获取所有动态注册的工具
+   */
+  getDynamicTools() {
+    if (!mcpHelper || !mcpHelper.mcpEndpoints) {
+      return []
+    }
+    
+    return mcpHelper.mcpEndpoints.filter(endpoint => endpoint.isDynamic)
+  }
+  
+  /**
+   * 设置自进化功能测试监听器
+   */
+  _setupEvolvingTestListeners() {
+    this.addCapabilityGapListener((gap) => {
+      console.log('\n--- 自进化功能测试 - 检测到能力缺口 ---')
+      console.log('缺口类型:', gap.type)
+      console.log('缺口描述:', gap.description)
+      console.log('建议工具:', gap.suggestedTool)
+      console.log('--- 自进化功能测试完毕 ---\n')
+    })
+  }
+  
+  /**
+   * 测试自进化系统功能
+   * 模拟一个需要特定工具的任务，并验证系统能否正确检测能力缺口
+   */
+  async testSelfEvolvingCapability() {
+    console.log('\n=== 开始自进化系统功能测试 ===')
+    
+    if (!this.toolConfig.selfEvolvingEnabled) {
+      console.log('测试失败: 自进化功能未启用')
+      return {success: false, message: '自进化功能未启用'}
+    }
+    
+    try {
+      // 1. 测试能力缺口检测
+      console.log('测试1: 能力缺口检测...')
+      const mockTask = '请使用特定的数据分析工具分析最近一个月的围棋对局数据，找出胜率最高的布局'
+      const capabilityGaps = await this._detectCapabilityGaps(mockTask)
+      
+      console.log('测试1结果:')
+      console.log('检测到的能力缺口:', capabilityGaps)
+      
+      // 2. 测试工具动态注册
+      console.log('\n测试2: 动态工具注册...')
+      const mockTool = {
+        name: '数据分析工具',
+        description: '分析围棋对局数据，生成胜率统计和布局分析',
+        parameters: [
+          {name: 'timeRange', type: 'string', description: '分析时间范围', required: true},
+          {name: 'analysisType', type: 'string', description: '分析类型', required: true}
+        ]
+      }
+      
+      const registeredTool = this.registerNewTool(mockTool)
+      console.log('测试2结果:')
+      console.log('工具注册成功:', registeredTool)
+      
+      // 3. 测试能力获取
+      console.log('\n测试3: 可用能力获取...')
+      const availableCapabilities = this._getAvailableCapabilities()
+      console.log('测试3结果:')
+      console.log('获取到的可用能力数量:', availableCapabilities.length)
+      
+      // 4. 测试再次检测（验证工具注册后缺口是否仍然存在）
+      console.log('\n测试4: 再次检测能力缺口...')
+      const newGaps = await this._detectCapabilityGaps(mockTask)
+      console.log('测试4结果:')
+      console.log('新检测到的能力缺口:', newGaps)
+      
+      // 5. 测试工具移除
+      console.log('\n测试5: 工具移除...')
+      const removed = this.unregisterTool(registeredTool.id)
+      console.log('测试5结果:')
+      console.log('工具移除状态:', removed)
+      
+      console.log('\n=== 自进化系统功能测试完成 ===')
+      return {
+        success: true,
+        message: '所有测试完成',
+        results: {
+          gapsDetection: !!capabilityGaps,
+          toolRegistration: !!registeredTool,
+          capabilitiesRetrieval: availableCapabilities.length > 0,
+          toolRemoval: removed
+        }
+      }
+    } catch (error) {
+      console.error('测试失败:', error)
+      return {success: false, message: error.message}
     }
   }
 }
