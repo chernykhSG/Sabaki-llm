@@ -1,43 +1,15 @@
-import * as remote from '@electron/remote'
-const setting = remote.require('./setting')
 import ai from './ai.js'
 import mcpHelper from './mcpHelper.js'
 import sabaki from './sabaki.js'
 import {getSelectedServiceProvider} from 'llm-service-provider'
-import {getLiveReports} from '../components/golaxy.js'
 import promptManager from './promptManager.js'
+import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from './agent.js'
+import {GolaxyLiveReportsAgent} from './golaxyAgent.js'
 
-export const AGENT_STATES = {
-  IDLE: 'idle',
-  THINKING: 'thinking',
-  ACTING: 'acting',
-  OBSERVING: 'observing',
-  ERROR: 'error',
-  PAUSED: 'paused'
-}
-
-export const ERROR_TYPES = {
-  LLM_ERROR: 'llm_error',
-  TOOL_ERROR: 'tool_error',
-  VALIDATION_ERROR: 'validation_error',
-  TIMEOUT_ERROR: 'timeout_error',
-  UNKNOWN_ERROR: 'unknown_error'
-}
-
-// 工具类型常量
-export const TOOL_TYPES = {
-  // 信息检索类：用于获取和查询系统或外部信息的工具
-  INFO_RETRIEVAL: 'info_retrieval',
-  // 执行/动作类：执行具体操作或控制的工具
-  EXECUTION: 'execution',
-  // 系统/API集成类：与其他系统或API进行交互的工具
-  SYSTEM_INTEGRATION: 'system_integration',
-  // 人机协作类：促进人机交互和协作的工具
-  HUMAN_COLLABORATION: 'human_collaboration'
-}
-
-export class AgentOrchestrator {
+export class AgentOrchestrator extends Agent {
   constructor() {
+    super('agent-orchestrator')
+    // 主智能体状态
     this.agentState = {
       currentStep: AGENT_STATES.IDLE,
       history: [],
@@ -64,14 +36,13 @@ export class AgentOrchestrator {
     }
 
     // 工具控制配置
-    // 工具控制配置
     this.toolConfig = {
-      includeBoardContext: true, // 控制是否包含boardContext数据
-      boardContextMaxLength: 1000, // boardContext最大长度限制
-      toolUsageEnabled: true, // 是否启用工具使用
-      planningEnabled: true, // 是否启用规划能力
-      multiAgentEnabled: false, // 是否启用多智能体协作
-      selfEvolvingEnabled: false // 是否启用自进化能力
+      includeBoardContext: true,
+      boardContextMaxLength: 1000,
+      toolUsageEnabled: true,
+      planningEnabled: true,
+      multiAgentEnabled: false,
+      selfEvolvingEnabled: false
     }
 
     this.boardDisplayState = {
@@ -93,64 +64,290 @@ export class AgentOrchestrator {
     }
 
     this.stateListeners = []
-
     this.errorHandlers = []
 
-    // 注册Golaxy直播报告工具
-    this._registerGolaxyLiveReportsTool()
+    // 多智能体相关
+    this.agents = {}
+    this.agentInteractions = []
+    this.defaultAgentId = 'main-agent'
+
+    // 注册默认主智能体
+    this._registerMainAgent()
+
+    // 注册Golaxy直播报告智能体
+    const golaxyAgent = this._registerGolaxyLiveReportsTool()
+    if (golaxyAgent) {
+      this.addAgent(golaxyAgent)
+    }
   }
 
   // 注册Golaxy直播报告工具的方法
   _registerGolaxyLiveReportsTool() {
-    const tool = {
-      id: 'get-golaxy-live-reports',
-      name: '获取Golaxy直播报告',
-      description: '获取Golaxy平台的实时和历史围棋比赛直播数据',
-      type: TOOL_TYPES.SYSTEM_INTEGRATION,
-      parameters: {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            description:
-              '要获取的报告类型，可以是"live"（直播）或"history"（历史）',
-            enum: ['live', 'history'],
-            default: 'live'
-          },
-          limit: {
-            type: 'number',
-            description: '返回的比赛数量限制',
-            default: 10
-          }
-        }
-      },
-      async handler(params = {}) {
-        try {
-          const {type = 'live', limit = 10} = params
-          const reports = await getLiveReports(
-            type === 'live' ? 'live' : 'history',
-            limit
-          )
-          return {
-            success: true,
-            data: reports,
-            content: `成功获取${type === 'live' ? '直播' : '历史'}比赛数据，共${
-              reports.length
-            }场比赛`
-          }
-        } catch (error) {
-          console.error('获取Golaxy直播报告失败:', error)
-          return {
-            success: false,
-            error: error.message || '获取Golaxy直播报告失败'
-          }
-        }
-      }
-    }
+    // 创建智能体实例
+    const golaxyAgent = new GolaxyLiveReportsAgent()
+
+    // 获取工具描述并注册到MCP助手
+    const tool = golaxyAgent.getToolDescription()
 
     // 注册到MCP助手
     if (mcpHelper.default && mcpHelper.default.registerEndpoint) {
       mcpHelper.default.registerEndpoint(tool)
+    }
+
+    // 返回智能体实例供后续使用
+    return golaxyAgent
+  }
+
+  addStateListener(listener) {
+    if (typeof listener === 'function') {
+      this.stateListeners.push(listener)
+    }
+  }
+
+  removeStateListener(listener) {
+    this.stateListeners = this.stateListeners.filter(l => l !== listener)
+  }
+
+  addErrorHandler(handler) {
+    if (typeof handler === 'function') {
+      this.errorHandlers.push(handler)
+    }
+  }
+
+  removeErrorHandler(handler) {
+    this.errorHandlers = this.errorHandlers.filter(h => h !== handler)
+  }
+
+  _emitStateChange(newState) {
+    const oldState = this.agentState.currentStep
+    this.agentState.currentStep = newState
+
+    this.stateListeners.forEach(listener => {
+      listener(newState, oldState)
+    })
+  }
+
+  _handleError(error, errorType = ERROR_TYPES.UNKNOWN_ERROR) {
+    const errorObj = {
+      type: errorType,
+      message: error.message || String(error),
+      stack: error.stack,
+      timestamp: Date.now(),
+      context: {
+        currentStep: this.agentState.currentStep,
+        executionCount: this.agentState.executionCount
+      }
+    }
+
+    console.error('Agent error:', errorObj)
+    this.agentState.error = errorObj
+    this.agentState.isRunning = false
+
+    this._emitStateChange(AGENT_STATES.ERROR)
+
+    this.errorHandlers.forEach(handler => {
+      handler(errorObj)
+    })
+
+    return errorObj
+  }
+
+  _checkTimeout() {
+    if (!this.agentState.startTime) return false
+
+    const elapsed = Date.now() - this.agentState.startTime
+    return elapsed > this.agentState.timeout
+  }
+
+  async run(userMessage, gameContext, options = {}) {
+    this.reset()
+
+    if (options.maxSteps) this.agentState.maxSteps = options.maxSteps
+    if (options.timeout) this.agentState.timeout = options.timeout
+    if (options.maxRetries) this.agentState.maxRetries = options.maxRetries
+
+    this.agentState.isRunning = true
+    this.agentState.startTime = Date.now()
+    this.agentState.conversationContext = {
+      initialMessage: userMessage,
+      gameContext: gameContext
+    }
+
+    this.agentState.history.push({
+      type: 'user',
+      content: userMessage,
+      timestamp: Date.now()
+    })
+
+    // 检查是否启用多智能体模式
+    if (this.toolConfig.multiAgentEnabled) {
+      console.log('启动多智能体协作模式')
+      return await this.runMultiAgent({
+        query: userMessage,
+        gameContext,
+        options
+      })
+    }
+
+    // 如果启用了人机协作且工具配置支持规划，使用五步问题解决流程
+    if (
+      this.humanCollaborationEnabled &&
+      this.toolConfig.planningEnabled &&
+      options.enableFiveStepProcess !== false
+    ) {
+      this._emitStateChange(AGENT_STATES.THINKING)
+      return await this.runWithFiveStepProcess(
+        userMessage,
+        gameContext,
+        options
+      )
+    }
+
+    // 否则使用常规流程
+    this._emitStateChange(AGENT_STATES.THINKING)
+    const result = await this._loop()
+    return result
+  }
+
+  // 多智能体协作执行方法
+  async runMultiAgent(context) {
+    try {
+      this._emitStateChange(AGENT_STATES.THINKING)
+
+      // 分析用户查询，确定需要使用的智能体
+      const query = context.query
+      let selectedAgentId = this.defaultAgentId
+
+      // 根据查询内容选择合适的智能体
+      if (
+        query.includes('直播') ||
+        query.includes('比赛') ||
+        query.includes('Golaxy')
+      ) {
+        // 查找Golaxy直播报告智能体
+        const golaxyAgentId = 'golaxy-live-reports-agent'
+        if (
+          this.agents[golaxyAgentId] &&
+          this.agents[golaxyAgentId].isAvailable
+        ) {
+          selectedAgentId = golaxyAgentId
+        }
+      }
+
+      // 获取选定的智能体
+      const selectedAgent = this.getAgent(selectedAgentId)
+
+      // 如果智能体不可用，回退到默认智能体
+      if (!selectedAgent || !selectedAgent.isAvailable) {
+        console.warn(`智能体 ${selectedAgentId} 不可用，回退到默认流程`)
+        return await this._loop()
+      }
+
+      this._emitStateChange(AGENT_STATES.ACTING)
+
+      // 准备参数
+      let params = {}
+      if (query.includes('历史')) {
+        params.type = 'history'
+      }
+
+      // 执行智能体操作
+      const result = await selectedAgent.execute(params)
+
+      // 记录智能体交互历史
+      this.agentInteractions.push({
+        timestamp: Date.now(),
+        agentId: selectedAgent.id,
+        query: query,
+        result: result.success ? 'success' : 'error',
+        responseSummary: result.content || result.error
+      })
+
+      this._emitStateChange(AGENT_STATES.IDLE)
+
+      // 返回智能体执行结果
+      return {
+        content: result.content || result.error,
+        agentResponse: result,
+        isFromAgent: true
+      }
+    } catch (error) {
+      console.error('多智能体执行失败:', error)
+      return this._handleError(error, ERROR_TYPES.TOOL_ERROR)
+    }
+  }
+
+  // 注册默认主智能体
+  _registerMainAgent() {
+    const mainAgent = new Agent(
+      this.defaultAgentId,
+      '主智能体',
+      TOOL_TYPES.HUMAN_COLLABORATION,
+      '协调其他智能体工作的主智能体'
+    )
+    mainAgent.addCapability('任务协调')
+    mainAgent.addCapability('智能体管理')
+    this.addAgent(mainAgent)
+  }
+
+  // 添加智能体到注册表
+  addAgent(agent) {
+    if (agent && agent.id) {
+      this.agents[agent.id] = agent
+      console.log(`智能体 ${agent.name} (${agent.id}) 已添加到注册表`)
+    }
+  }
+
+  // 从注册表移除智能体
+  removeAgent(agentId) {
+    if (this.agents[agentId]) {
+      delete this.agents[agentId]
+      console.log(`智能体 ${agentId} 已从注册表移除`)
+    }
+  }
+
+  // 获取智能体
+  getAgent(agentId) {
+    return this.agents[agentId] || null
+  }
+
+  // 获取所有智能体
+  getAllAgents() {
+    return Object.values(this.agents)
+  }
+
+  // 设置多智能体模式
+  setMultiAgentEnabled(enabled) {
+    this.toolConfig.multiAgentEnabled = enabled
+    console.log(`多智能体模式已${enabled ? '启用' : '禁用'}`)
+  }
+
+  // 重置智能体状态
+  resetAgentState() {
+    this.agentState = {
+      currentStep: AGENT_STATES.IDLE,
+      history: [],
+      conversationContext: null,
+      lastActionResult: null,
+      isRunning: false,
+      error: null,
+      executionCount: 0,
+      maxSteps: 20,
+      startTime: null,
+      timeout: 300000,
+      retryCount: 0,
+      maxRetries: 3
+    }
+  }
+
+  reset() {
+    this.resetAgentState()
+    this.fiveStepProcess = {
+      currentProcessStep: null,
+      processSteps: [],
+      isProcessRunning: false,
+      currentStepResult: null,
+      processContext: null
     }
   }
 
@@ -235,6 +432,16 @@ export class AgentOrchestrator {
       content: userMessage,
       timestamp: Date.now()
     })
+
+    // 检查是否启用多智能体模式
+    if (this.toolConfig.multiAgentEnabled) {
+      console.log('启动多智能体协作模式')
+      return await this.runMultiAgent({
+        query: userMessage,
+        gameContext,
+        options
+      })
+    }
 
     // 如果启用了人机协作且工具配置支持规划，使用五步问题解决流程
     if (
@@ -608,7 +815,7 @@ export class AgentOrchestrator {
     // 遍历执行步骤，检查是否需要调用工具
     for (const actionStep of planningResult.executionSteps) {
       executedActions.push(actionStep)
-      if(!actionStep.toolCall) continue
+      if (!actionStep.toolCall) continue
       // 检查步骤是否包含工具调用信息
       const toolCall = actionStep.toolCall.mcp.tool
       if (toolCall) {
@@ -1099,8 +1306,118 @@ export class AgentOrchestrator {
   /**
    * 设置是否启用多智能体协作
    */
+  // 注册默认主智能体
+  _registerMainAgent() {
+    // 创建主智能体实例
+    const mainAgent = new Agent(
+      this.defaultAgentId,
+      '主智能体',
+      'main',
+      '系统主要智能体，负责协调其他智能体和处理用户请求'
+    )
+    mainAgent.addCapability('任务分析')
+    mainAgent.addCapability('智能体协调')
+    mainAgent.addCapability('用户交互')
+
+    // 重写execute方法，作为默认处理
+    mainAgent.execute = async params => {
+      this.setState(AGENT_STATES.ACTING)
+      return {
+        success: true,
+        content: '主智能体处理了请求',
+        agentId: mainAgent.id,
+        agentName: mainAgent.name
+      }
+    }
+
+    this.addAgent(mainAgent)
+    return mainAgent
+  }
+
+  // 添加智能体
+  addAgent(agent) {
+    if (agent && agent.id && agent instanceof Agent) {
+      this.agents[agent.id] = agent
+      console.log(`智能体已添加: ${agent.name} (${agent.id})`)
+      return true
+    }
+    return false
+  }
+
+  // 移除智能体
+  removeAgent(agentId) {
+    if (this.agents[agentId]) {
+      delete this.agents[agentId]
+      console.log(`智能体已移除: ${agentId}`)
+      return true
+    }
+    return false
+  }
+
+  // 获取智能体
+  getAgent(agentId) {
+    return this.agents[agentId] || null
+  }
+
+  // 获取所有智能体
+  getAllAgents() {
+    return Object.values(this.agents)
+  }
+
+  // 获取智能体信息列表
+  getAgentsInfo() {
+    return Object.values(this.agents).map(agent => agent.getInfo())
+  }
+
+  // 向智能体发送消息（用于智能体间通信）
+  async sendMessageToAgent(fromAgentId, toAgentId, message, params = {}) {
+    const targetAgent = this.getAgent(toAgentId)
+    if (!targetAgent || !targetAgent.isAvailable) {
+      return {
+        success: false,
+        error: `智能体${toAgentId}不可用`
+      }
+    }
+
+    // 记录交互历史
+    this.agentInteractions.push({
+      from: fromAgentId,
+      to: toAgentId,
+      message,
+      timestamp: Date.now()
+    })
+
+    try {
+      // 调用目标智能体的execute方法
+      const result = await targetAgent.execute({
+        ...params,
+        message,
+        sender: fromAgentId
+      })
+
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || '智能体通信失败'
+      }
+    }
+  }
+
+  // 根据能力查找合适的智能体
+  findAgentByCapability(capability) {
+    for (const agent of Object.values(this.agents)) {
+      if (agent.isAvailable && agent.hasCapability(capability)) {
+        return agent
+      }
+    }
+    return null
+  }
+
+  // 设置是否启用多智能体协作
   setMultiAgentEnabled(enabled) {
     this.toolConfig.multiAgentEnabled = enabled
+    console.log(`多智能体协作已${enabled ? '启用' : '禁用'}`)
   }
 
   /**
@@ -1457,14 +1774,101 @@ export class AgentOrchestrator {
       isRunning: false,
       error: null,
       executionCount: 0,
-      maxSteps: this.agentState.maxSteps,
+      maxSteps: 20,
       startTime: null,
-      timeout: this.agentState.timeout,
+      timeout: 300000,
       retryCount: 0,
-      maxRetries: this.agentState.maxRetries
+      maxRetries: 3
     }
 
     this._emitStateChange(AGENT_STATES.IDLE)
+  }
+
+  // 多智能体协作执行方法
+  async runMultiAgent(params = {}) {
+    // 设置状态
+    this._emitStateChange(AGENT_STATES.THINKING)
+
+    // 获取所有可用智能体
+    const availableAgents = this.getAllAgents().filter(
+      agent => agent.isAvailable
+    )
+
+    // 如果没有可用智能体，返回错误
+    if (availableAgents.length === 0) {
+      this.agentState.error = '没有可用的智能体'
+      this._emitStateChange(AGENT_STATES.ERROR)
+      return {
+        success: false,
+        error: '没有可用的智能体'
+      }
+    }
+
+    // 主智能体作为协调者
+    const mainAgent = this.getAgent(this.defaultAgentId)
+    if (!mainAgent) {
+      this.agentState.error = '主智能体未找到'
+      this._emitStateChange(AGENT_STATES.ERROR)
+      return {
+        success: false,
+        error: '主智能体未找到'
+      }
+    }
+
+    try {
+      // 由主智能体分析任务并分配
+      const analysisResult = await mainAgent.execute({
+        ...params,
+        task: 'analyze_and_plan',
+        availableAgents: this.getAgentsInfo()
+      })
+
+      // 根据任务性质查找合适的智能体
+      let taskAgent = mainAgent
+      const query = params.query || ''
+
+      // 判断是否需要Golaxy直播报告智能体
+      if (
+        query.includes('直播') ||
+        query.includes('比赛') ||
+        query.includes('Golaxy')
+      ) {
+        taskAgent = this.findAgentByCapability('获取直播数据') || taskAgent
+      }
+
+      this._emitStateChange(AGENT_STATES.ACTING)
+
+      // 执行任务
+      const result = await taskAgent.execute(params)
+
+      // 记录执行历史
+      this.agentState.history.push({
+        agentId: taskAgent.id,
+        agentName: taskAgent.name,
+        action: 'execute',
+        result,
+        timestamp: Date.now()
+      })
+
+      this._emitStateChange(AGENT_STATES.IDLE)
+
+      // 返回带有智能体信息的结果
+      return {
+        ...result,
+        success: true,
+        agentId: taskAgent.id,
+        agentName: taskAgent.name,
+        协作模式: '多智能体'
+      }
+    } catch (error) {
+      this.agentState.error = error.message
+      this._emitStateChange(AGENT_STATES.ERROR)
+      return {
+        success: false,
+        error: error.message,
+        state: this.getStats()
+      }
+    }
   }
 
   stop() {

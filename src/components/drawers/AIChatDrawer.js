@@ -6,8 +6,8 @@ import mcpHelper from '../../modules/mcpHelper.js'
 import Drawer from './Drawer.js'
 import {
   AgentOrchestrator,
-  AGENT_STATES
 } from '../../modules/agentOrchestrator.js'
+import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from '../../modules/agent.js'
 
 const t = i18n.context('AIChatDrawer')
 
