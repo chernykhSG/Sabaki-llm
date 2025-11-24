@@ -5,6 +5,7 @@ import mcpHelper from './mcpHelper.js'
 import sabaki from './sabaki.js'
 import {getSelectedServiceProvider} from 'llm-service-provider'
 import {getLiveReports} from '../components/golaxy.js'
+import promptManager from './promptManager.js'
 
 export const AGENT_STATES = {
   IDLE: 'idle',
@@ -368,7 +369,7 @@ export class AgentOrchestrator {
           stepResult = await this._executePlanning(step, processContext)
           break
         case 'execution':
-          stepResult = await this._executeActions(step, processContext)
+          stepResult = await this._executeActions(processContext)
           break
         case 'observation':
           stepResult = await this._executeObservation(step, processContext)
@@ -501,22 +502,29 @@ export class AgentOrchestrator {
     // 获取棋盘上下文
     const boardContext = await this.getBoardContext(processContext.gameContext)
 
+    // 获取可用的MCP工具列表
+    const toolsListJson = mcpHelper.getAvailableEndpoints()
+
     const prompt = `
 任务：${processContext.userMessage}
 
 棋盘上下文：${boardContext || '无可用棋盘信息'}
+
+可用工具列表：${JSON.stringify(toolsListJson, null, 2)}
 
 请按照以下步骤感知环境：
 1. 分析当前棋盘状态（如果有）
 2. 识别相关的上下文信息
 3. 收集解决问题所需的信息
 4. 评估信息的完整性
+5. 考虑是否可以使用可用工具获取更多信息
 
 输出要求：
 - summary: 环境分析摘要（1-2句话）
 - details: 详细的环境分析
 - relevantInformation: 相关信息列表
 - informationGaps: 信息缺口（如果有）
+- recommendedTools: 建议使用的工具（如果需要获取更多信息）
 `
 
     const response = await ai.sendLLMMessage(prompt, processContext.gameContext)
@@ -534,14 +542,14 @@ export class AgentOrchestrator {
     // 获取MCP工具列表
     let toolsListJson = '[]'
     let toolsInfo = ''
-    if (this.toolConfig.toolUsageEnabled) {
-      toolsListJson = this.formatToolsList(true, false, true)
-      toolsInfo = `\n\n可用工具列表:\n${JSON.stringify(
-        toolsListJson,
-        null,
-        2
-      )}\n`
-    }
+    // if (this.toolConfig.toolUsageEnabled) {
+    //   toolsListJson = this.formatToolsList(true, false, true)
+    //   toolsInfo = `\n\n可用工具列表:\n${JSON.stringify(
+    //     toolsListJson,
+    //     null,
+    //     2
+    //   )}\n`
+    // }
 
     const prompt = `
 任务：${processContext.userMessage}
@@ -586,7 +594,7 @@ export class AgentOrchestrator {
   /**
    * 执行执行行动步骤
    */
-  async _executeActions(step, processContext) {
+  async _executeActions(processContext) {
     const planningResult = processContext.stepResults.planning.details
     if (!planningResult || !planningResult.executionSteps) {
       return {error: '缺少执行步骤计划'}
@@ -600,37 +608,39 @@ export class AgentOrchestrator {
     // 遍历执行步骤，检查是否需要调用工具
     for (const actionStep of planningResult.executionSteps) {
       executedActions.push(actionStep)
-
+      if(!actionStep.toolCall) continue
       // 检查步骤是否包含工具调用信息
-      if (actionStep.toolCall) {
+      const toolCall = actionStep.toolCall.mcp.tool
+      if (toolCall) {
         try {
           // 执行工具调用
-          const toolResult = await this._executeTool(actionStep.toolCall)
+          const toolResult = await this._executeTool(toolCall)
 
           // 保存工具调用结果
           toolResults.push({
-            toolName: actionStep.toolCall.name,
-            parameters: actionStep.toolCall.parameters,
+            toolName: toolCall.name,
+            parameters: toolCall.parameters,
             result: toolResult
           })
 
           // 添加到结果汇总
-          if (toolResult.data || toolResult.content) {
+          const result = toolResult.toolResult
+          if (result.data || result.content) {
             const resultContent = JSON.stringify(
-              toolResult.data || toolResult.content,
+              result.data || result.content,
               null,
               2
             )
-            allResults += `工具 ${actionStep.toolCall.name} 的结果:\n${resultContent}\n\n`
+            allResults += `工具 ${toolCall.name} 的结果:\n${resultContent}\n\n`
           }
         } catch (error) {
           // 记录错误但继续执行其他步骤
           toolResults.push({
-            toolName: actionStep.toolCall.name,
-            parameters: actionStep.toolCall.parameters,
+            toolName: toolCall.name,
+            parameters: toolCall.parameters,
             error: error.message
           })
-          allResults += `工具 ${actionStep.toolCall.name} 执行失败: ${error.message}\n\n`
+          allResults += `工具 ${toolCall.name} 执行失败: ${error.message}\n\n`
         }
       } else if (actionStep.description) {
         // 对于没有工具调用的步骤，直接使用描述
@@ -954,12 +964,11 @@ export class AgentOrchestrator {
 
   async _executeTool(toolInfo) {
     // 兼容直接传递工具信息和嵌套在mcp.tool中的两种格式
-    const toolData = toolInfo.mcp?.tool || toolInfo
     const info = {
       type: 'tool_call',
       content: toolInfo,
       timestamp: Date.now(),
-      ...toolData
+      ...toolInfo
     }
     this.agentState.history.push(info)
 
@@ -1390,7 +1399,7 @@ export class AgentOrchestrator {
     return this.thoughtProcessHandlers.decide(plan)
   }
 
-  _buildThoughtPrompt() {
+  async _buildThoughtPrompt() {
     // MCP协议要求使用JSON格式的工具列表
     let toolsListJson = '[]'
     if (this.toolConfig.toolUsageEnabled) {
@@ -1398,49 +1407,17 @@ export class AgentOrchestrator {
     }
     const {lastToolResult} = this.agentState.conversationContext || {}
 
-    // 构建符合MCP协议的提示
-    let prompt = `你是一个围棋助手，需要分析最新的用户请求和工具执行结果，然后决定下一步操作。\n\n`
-
-    // MCP工具列表（JSON格式）
-    prompt += `MCP工具列表:\n${JSON.stringify(toolsListJson, null, 2)}\n\n`
-
-    prompt += `用户历史消息:\n`
-    // 只添加除了最后一条以外的用户消息，避免重复包含当前问题
+    // 获取用户历史消息
     const userMessages = this.agentState.history.filter(
       item => item.type === 'user'
     )
-    for (let i = 0; i < userMessages.length - 1; i++) {
-      prompt += `- ${userMessages[i].content}\n`
-    }
-    // 单独添加当前问题，并标记为最新
-    if (userMessages.length > 0) {
-      prompt += `- [最新] ${userMessages[userMessages.length - 1].content}\n`
-    }
 
-    if (lastToolResult) {
-      prompt += `\n最近的工具执行结果:\n${JSON.stringify(
-        lastToolResult,
-        null,
-        2
-      )}\n\n`
-    }
-
-    prompt += `请你根据以上信息，决定是调用工具、直接回答用户还是追问用户。\n\n`
-
-    prompt += `输出格式要求:\n`
-    prompt += `1. 如果决定调用工具，包含以下字段:\n`
-    prompt += `   {"action":"tool_call","tool":{"name":"工具名称","parameters":{参数对象}}}\n`
-    prompt += `   请注意: 每个工具都提供了outputSchema，描述了工具返回结果的预期结构。请根据outputSchema解释工具结果。\n`
-    prompt += `   此外，请注意工具可能返回两种类型的错误:\n`
-    prompt += `   1. 标准JSON-RPC错误: 包含jsonrpc、error.code、error.message和error.data字段，用于协议层面的错误\n`
-    prompt += `   2. 工具操作错误: 包含isError:true字段，以及error或message字段，用于工具执行过程中的错误\n`
-    prompt += `   请识别并准确解释这些错误信息，帮助用户理解失败原因。\n`
-    prompt += `2. 如果决定直接回答用户，\n`
-    prompt += `   {"action":"respond","content":"回答内容"}\n`
-    prompt += `3. 如果需要追问用户，\n`
-    prompt += `   {"action":"ask_clarification","content":"追问内容"}\n`
-
-    return prompt
+    // 使用promptManager构建决策提示
+    return await promptManager.buildDecisionPrompt(
+      toolsListJson,
+      userMessages,
+      lastToolResult
+    )
   }
 
   _parseThoughtResponse(response) {

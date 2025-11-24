@@ -1155,7 +1155,7 @@ class MCPHelper {
     }
 
     let toolName = mcpRequest.mcp.tool.name
-    let endpoint = this.mcpEndpoints.find(e => e.name === toolName)
+    let endpoint = this.mcpEndpoints.find(e => e.name === toolName || e.id===toolName)
 
     // 检查工具是否存在
     if (!endpoint) {
