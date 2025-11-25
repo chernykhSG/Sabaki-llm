@@ -1393,7 +1393,7 @@ class MCPHelper {
         }
       }
     } catch (error) {
-      console.error('获取棋盘上下文失败:', error)
+      console.log('获取棋盘上下文失败:', error)
       return {
         success: false,
         error: error.message

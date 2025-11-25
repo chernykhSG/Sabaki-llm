@@ -6,6 +6,7 @@ import promptManager from './promptManager.js'
 import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from './agent.js'
 import {GolaxyLiveReportsAgent} from './golaxyAgent.js'
 import * as gametree from '../modules/gametree.js'
+import ragManager from './ragManager.js'
 
 export class AgentOrchestrator extends Agent {
   constructor() {
@@ -43,7 +44,7 @@ export class AgentOrchestrator extends Agent {
       toolUsageEnabled: true,
       planningEnabled: true,
       multiAgentEnabled: false,
-      selfEvolvingEnabled: true // 默认启用自进化功能用于测试
+      selfEvolvingEnabled: false
     }
 
     this.boardDisplayState = {
@@ -266,6 +267,8 @@ ${JSON.stringify(availableCapabilities, null, 2)}
     return errorObj
   }
 
+// 移除类方法中间的require语句
+
   _checkTimeout() {
     if (!this.agentState.startTime) return false
 
@@ -293,6 +296,15 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       timestamp: Date.now()
     })
 
+    // 初始化RAG系统并检索相关记忆
+    await ragManager.initialize();
+    const relevantHistory = await ragManager.importRelevantHistory(userMessage);
+    
+    // 将检索到的相关历史添加到对话上下文中
+    if (relevantHistory) {
+      this.agentState.conversationContext.relevantHistory = relevantHistory;
+    }
+
     // 如果启用了人机协作且工具配置支持规划，优先使用五步问题解决流程（适用于自进化系统）
     if (
       this.humanCollaborationEnabled &&
@@ -300,26 +312,49 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       options.enableFiveStepProcess !== false
     ) {
       this._emitStateChange(AGENT_STATES.THINKING)
-      return await this.runWithFiveStepProcess(
+      const result = await this.runWithFiveStepProcess(
         userMessage,
         gameContext,
         options
-      )
+      );
+      
+      // 存储当前对话到RAG系统
+      await ragManager.storeMemory(
+        `用户: ${userMessage}\n\n助手: ${result.response || JSON.stringify(result)}`,
+        { interactionType: 'fiveStepProcess' }
+      );
+      
+      return result;
     }
     
     // 检查是否启用多智能体模式
     if (this.toolConfig.multiAgentEnabled) {
       console.log('启动多智能体协作模式')
-      return await this.runMultiAgent({
+      const result = await this.runMultiAgent({
         query: userMessage,
         gameContext,
         options
-      })
+      });
+      
+      // 存储多智能体对话到RAG系统
+      await ragManager.storeMemory(
+        `用户: ${userMessage}\n\n助手: ${JSON.stringify(result)}`,
+        { interactionType: 'multiAgent' }
+      );
+      
+      return result;
     }
 
     // 否则使用常规流程
     this._emitStateChange(AGENT_STATES.THINKING)
-    const result = await this._loop()
+    const result = await this._loop();
+    
+    // 存储常规对话到RAG系统
+    await ragManager.storeMemory(
+      `用户: ${userMessage}\n\n助手: ${JSON.stringify(result)}`,
+      { interactionType: 'regular' }
+    );
+    
     return result
   }
 
@@ -1194,7 +1229,7 @@ ${JSON.stringify(availableCapabilities, null, 2)}
   async _think() {
     this._emitStateChange(AGENT_STATES.THINKING)
 
-    const thoughtPrompt = this._buildThoughtPrompt()
+    const thoughtPrompt = await this._buildThoughtPrompt()
     let thoughtResponse
     try {
       thoughtResponse = await ai.sendLLMMessage(
@@ -2234,10 +2269,14 @@ ${JSON.stringify(availableCapabilities, null, 2)}
   _setupEvolvingTestListeners() {
     this.addCapabilityGapListener((gap) => {
       console.log('\n--- 自进化功能测试 - 检测到能力缺口 ---')
-      console.log('缺口类型:', gap.type)
-      console.log('缺口描述:', gap.description)
-      console.log('建议工具:', gap.suggestedTool)
-      console.log('--- 自进化功能测试完毕 ---\n')
+      console.log('- hasGap:', gap.hasGap)
+      console.log('- gapType:', gap.gapType)
+      console.log('- gapName:', gap.gapName)
+      console.log('- gapDescription:', gap.gapDescription)
+      console.log('- coreFunctions:', gap.coreFunctions)
+      console.log('- requiredParameters:', gap.requiredParameters)
+      console.log('- reason:', gap.reason)
+      console.log('--- 自进化功能测试完毕 ---')
     })
   }
   

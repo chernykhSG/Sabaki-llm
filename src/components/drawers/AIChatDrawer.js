@@ -8,6 +8,7 @@ import {
   AgentOrchestrator,
 } from '../../modules/agentOrchestrator.js'
 import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from '../../modules/agent.js'
+import * as dialog from '../../modules/dialog.js'
 
 const t = i18n.context('AIChatDrawer')
 
@@ -153,38 +154,64 @@ export default class AIChatDrawer extends Drawer {
 
   // 处理能力缺口，提示用户创建新工具
   handleCapabilityGap(gapInfo) {
-    const {requiredCapability, context, suggestedToolInfo} = gapInfo
+    const {hasGap, gapType, gapName, gapDescription, coreFunctions, requiredParameters, reason, context} = gapInfo
+    
+    // 如果不存在缺口或类型不明确，不进行处理
+    if (!hasGap || !['tool', 'agent'].includes(gapType)) return
     
     // 创建用户交互对话框
-    const createTool = () => {
-      // 收集新工具信息
-      const toolName = prompt('请输入新工具名称:', suggestedToolInfo?.name || requiredCapability)
-      if (!toolName) return
-      
-      const toolDescription = prompt('请输入工具描述:', suggestedToolInfo?.description || `处理${requiredCapability}相关任务的工具`)
-      if (!toolDescription) return
-      
-      const toolParameters = prompt('请输入工具参数(以逗号分隔):', suggestedToolInfo?.parameters || '')
-      
-      // 构建新工具信息
-      const newToolInfo = {
-        name: toolName,
-        description: toolDescription,
-        parameters: toolParameters ? toolParameters.split(',').map(p => p.trim()) : [],
-        context: context,
-        timestamp: Date.now()
+    const createToolOrAgent = async () => {
+      try {
+        // 收集新工具/智能体信息
+        const entityName = await dialog.showInputBox(`请输入新${gapType === 'tool' ? '工具' : '智能体'}名称: (默认: ${gapName})`)
+        if (entityName === null) return
+        
+        const resolvedName = entityName.trim() || gapName
+        
+        const entityDescription = await dialog.showInputBox(`请输入${gapType === 'tool' ? '工具' : '智能体'}描述: (默认: ${gapDescription})`)
+        if (entityDescription === null) return
+        
+        const resolvedDescription = entityDescription.trim() || gapDescription
+        
+        const paramHint = requiredParameters?.join(', ') || ''
+        const entityParameters = await dialog.showInputBox(`请输入${gapType === 'tool' ? '工具' : '智能体'}参数(以逗号分隔): (${paramHint || '无默认参数'})`)
+        if (entityParameters === null) return
+        
+        // 构建新实体信息
+        const newEntityInfo = {
+          hasGap: true,
+          gapType: gapType,
+          name: resolvedName,
+          description: resolvedDescription,
+          coreFunctions: coreFunctions || [],
+          requiredParameters: entityParameters ? entityParameters.split(',').map(p => p.trim()) : [],
+          reason: reason,
+          context: context,
+          timestamp: Date.now()
+        }
+        
+        // 向用户显示新实体信息预览
+        const previewMessage = `新${gapType === 'tool' ? '工具' : '智能体'}信息已收集:\n名称: ${newEntityInfo.name}\n描述: ${newEntityInfo.description}\n参数: ${newEntityInfo.requiredParameters.join(', ')}\n理由: ${newEntityInfo.reason || '支持系统功能扩展'}\n\n请开发人员根据以上信息实现该${gapType === 'tool' ? '工具' : '智能体'}。`
+        dialog.showMessageBox(previewMessage, 'info')
+        
+        // 触发工具注册流程
+        this.registerNewTool(newEntityInfo)
+      } catch (error) {
+        console.error('创建工具/智能体过程中出错:', error)
+        dialog.showMessageBox('创建工具/智能体失败，请稍后重试。', 'error')
       }
-      
-      // 向用户显示新工具信息预览
-      alert(`新工具信息已收集:\n名称: ${newToolInfo.name}\n描述: ${newToolInfo.description}\n参数: ${newToolInfo.parameters.join(', ')}\n\n请开发人员根据以上信息实现该工具。`)
-      
-      // 触发工具注册流程
-      this.registerNewTool(newToolInfo)
     }
     
     // 显示确认对话框
-    if (confirm(`系统检测到能力缺口: 需要"${requiredCapability}"能力\n\n${suggestedToolInfo?.description || '请创建相应工具以支持该功能'}\n\n是否创建新工具?`)) {
-      createTool()
+    const result = dialog.showMessageBox(
+      `系统检测到能力缺口:\n\n${gapDescription}\n\n需要的类型: ${gapType === 'tool' ? '工具' : '智能体'}\n需要的理由: ${reason || '扩展系统功能'}\n\n是否创建新${gapType === 'tool' ? '工具' : '智能体'}?`,
+      'question',
+      ['是', '否'],
+      1
+    )
+    
+    if (result === 0) {
+      createToolOrAgent()
     }
   }
 
