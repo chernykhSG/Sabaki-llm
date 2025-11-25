@@ -516,6 +516,8 @@ export default class AIChatDrawer extends Drawer {
         this.agentOrchestrator.setPlanningEnabled(true)
         this.agentOrchestrator.setMultiAgentEnabled(true)
         this.agentOrchestrator.setSelfEvolvingEnabled(true)
+        // 确保自进化系统使用五步流程
+        this.agentOrchestrator.setHumanCollaborationEnabled(true)
         break
     }
   }

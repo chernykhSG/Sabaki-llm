@@ -5,6 +5,7 @@ import {getSelectedServiceProvider} from 'llm-service-provider'
 import promptManager from './promptManager.js'
 import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from './agent.js'
 import {GolaxyLiveReportsAgent} from './golaxyAgent.js'
+import * as gametree from '../modules/gametree.js'
 
 export class AgentOrchestrator extends Agent {
   constructor() {
@@ -24,7 +25,7 @@ export class AgentOrchestrator extends Agent {
       retryCount: 0,
       maxRetries: 3
     }
-    this.humanCollaborationEnabled = false
+    this.humanCollaborationEnabled = true
 
     // 五步问题解决流程相关状态
     this.fiveStepProcess = {
@@ -292,17 +293,7 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       timestamp: Date.now()
     })
 
-    // 检查是否启用多智能体模式
-    if (this.toolConfig.multiAgentEnabled) {
-      console.log('启动多智能体协作模式')
-      return await this.runMultiAgent({
-        query: userMessage,
-        gameContext,
-        options
-      })
-    }
-
-    // 如果启用了人机协作且工具配置支持规划，使用五步问题解决流程
+    // 如果启用了人机协作且工具配置支持规划，优先使用五步问题解决流程（适用于自进化系统）
     if (
       this.humanCollaborationEnabled &&
       this.toolConfig.planningEnabled &&
@@ -314,6 +305,16 @@ ${JSON.stringify(availableCapabilities, null, 2)}
         gameContext,
         options
       )
+    }
+    
+    // 检查是否启用多智能体模式
+    if (this.toolConfig.multiAgentEnabled) {
+      console.log('启动多智能体协作模式')
+      return await this.runMultiAgent({
+        query: userMessage,
+        gameContext,
+        options
+      })
     }
 
     // 否则使用常规流程
@@ -546,6 +547,20 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       timestamp: Date.now()
     })
 
+    // 如果启用了人机协作且工具配置支持规划，优先使用五步问题解决流程（适用于自进化系统）
+    if (
+      this.humanCollaborationEnabled &&
+      this.toolConfig.planningEnabled &&
+      options.enableFiveStepProcess !== false
+    ) {
+      this._emitStateChange(AGENT_STATES.THINKING)
+      return await this.runWithFiveStepProcess(
+        userMessage,
+        gameContext,
+        options
+      )
+    }
+
     // 检查是否启用多智能体模式
     if (this.toolConfig.multiAgentEnabled) {
       console.log('启动多智能体协作模式')
@@ -556,7 +571,7 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       })
     }
 
-    // 如果启用了人机协作且工具配置支持规划，使用五步问题解决流程
+    // 重新检查五步流程条件（保持原有结构）
     if (
       this.humanCollaborationEnabled &&
       this.toolConfig.planningEnabled &&
@@ -1089,14 +1104,11 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       // 如果启用了自进化功能，在思考前进行能力缺口检测
       if (this.toolConfig.selfEvolvingEnabled && this.agentState.executionCount === 1) {
         const currentTask = this.agentState.conversationContext?.initialMessage || ''
-        const availableCapabilities = this._getAvailableCapabilities()
-        const capabilityGaps = this._detectCapabilityGaps(currentTask, availableCapabilities)
+        const capabilityGaps = await this._detectCapabilityGaps(currentTask)
         
         // 如果检测到能力缺口，触发通知
-        if (capabilityGaps.length > 0) {
-          for (const gap of capabilityGaps) {
-            this._triggerCapabilityGap(gap)
-          }
+        if (capabilityGaps && capabilityGaps.hasGap) {
+          this._triggerCapabilityGap(capabilityGaps)
           
           // 暂停执行，等待用户可能添加的新工具
           // 注意：这里我们让执行继续，但用户可以在工具被注册后通过新的交互来继续
@@ -1134,14 +1146,10 @@ ${JSON.stringify(availableCapabilities, null, 2)}
 
       // 在观察阶段，如果启用了自进化功能，根据执行结果再次检查能力缺口
       if (this.toolConfig.selfEvolvingEnabled && observation.suggestCapabilityGaps) {
-        const availableCapabilities = this._getAvailableCapabilities()
-        const capabilityGaps = this._detectCapabilityGaps(
-          observation.suggestCapabilityGaps,
-          availableCapabilities
-        )
+        const capabilityGaps = await this._detectCapabilityGaps(observation.suggestCapabilityGaps)
         
-        for (const gap of capabilityGaps) {
-          this._triggerCapabilityGap(gap)
+        if (capabilityGaps && capabilityGaps.hasGap) {
+          this._triggerCapabilityGap(capabilityGaps)
         }
       }
 
@@ -1212,13 +1220,10 @@ ${JSON.stringify(availableCapabilities, null, 2)}
     // 如果启用了自进化功能，检查思考结果中是否提到了需要但不存在的工具
     if (this.toolConfig.selfEvolvingEnabled) {
       const thoughtText = JSON.stringify(thoughtResult)
-      const availableCapabilities = this._getAvailableCapabilities()
-      const potentialGaps = this._detectCapabilityGaps(thoughtText, availableCapabilities)
+      const potentialGaps = await this._detectCapabilityGaps(thoughtText)
       
-      if (potentialGaps.length > 0) {
-        for (const gap of potentialGaps) {
-          this._triggerCapabilityGap(gap)
-        }
+      if (potentialGaps && potentialGaps.hasGap) {
+        this._triggerCapabilityGap(potentialGaps)
       }
     }
 
@@ -1316,13 +1321,10 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       // 如果启用了自进化功能，基于工具执行结果检查潜在能力缺口
       if (this.toolConfig.selfEvolvingEnabled) {
         const toolResultText = JSON.stringify(actionResult.toolResult)
-        const availableCapabilities = this._getAvailableCapabilities()
-        const potentialGaps = this._detectCapabilityGaps(toolResultText, availableCapabilities)
+        const potentialGaps = await this._detectCapabilityGaps(toolResultText)
         
-        if (potentialGaps.length > 0) {
-          for (const gap of potentialGaps) {
-            this._triggerCapabilityGap(gap)
-          }
+        if (potentialGaps && potentialGaps.hasGap) {
+          this._triggerCapabilityGap(potentialGaps)
         }
       }
 
@@ -1505,11 +1507,7 @@ ${JSON.stringify(availableCapabilities, null, 2)}
         }
         
         // 调用AI模块处理请求
-        const llmResponse = await ai.sendLLMMessage({
-          query: llmParams.query,
-          task: llmParams.task,
-          context: llmParams.context
-        }, sabaki.state)
+        const llmResponse = await ai.sendLLMMessage(llmParams.query, sabaki.state)
         
         return {
           success: true,
@@ -1539,17 +1537,16 @@ ${JSON.stringify(availableCapabilities, null, 2)}
       if (!sabaki || !sabaki.state) return null
       
       const {gameTrees, gameIndex, treePosition} = sabaki.state
-      const gametree = gameTrees[gameIndex]
-      if (!gametree) return null
+      if (!gameTrees[gameIndex]) return null
       
       // 获取当前棋盘状态
-      const board = gametree.getBoard(gametree, treePosition)
+      const board = gametree.getBoard(gameTrees[gameIndex], treePosition)
       
       // 限制上下文长度
       const boardContext = {
         boardSize: board ? board.width : 19,
         currentMove: treePosition.length,
-        gameInfo: gametree.getGameInfo(gametree),
+        gameInfo: gametree.getGameInfo(gameTrees[gameIndex]),
         transformation: sabaki.state.gobanTransformation || ''
       }
       
