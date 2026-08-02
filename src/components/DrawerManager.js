@@ -9,6 +9,7 @@ import GameChooserDrawer from './drawers/GameChooserDrawer.js'
 import CleanMarkupDrawer from './drawers/CleanMarkupDrawer.js'
 import AdvancedPropertiesDrawer from './drawers/AdvancedPropertiesDrawer.js'
 import AIChatDrawer from './drawers/AIChatDrawer.js'
+import GameReviewDrawer from './drawers/GameReviewDrawer.js'
 
 export default class DrawerManager extends Component {
   constructor() {
@@ -138,6 +139,10 @@ export default class DrawerManager extends Component {
         ...this.props,
         show: true
         // show: openDrawer === 'ai-chat'
+      }),
+
+      h(GameReviewDrawer, {
+        show: openDrawer === 'game-review'
       })
     )
   }

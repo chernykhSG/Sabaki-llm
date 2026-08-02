@@ -86,6 +86,49 @@ class PreferencesItem extends Component {
   }
 }
 
+class NumberSettingItem extends Component {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      value: setting.get(props.id)
+    }
+
+    this.handleChange = evt => {
+      let value = +evt.currentTarget.value
+      if (isNaN(value)) return
+
+      setting.set(this.props.id, value)
+    }
+
+    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+      if (key === this.props.id) {
+        this.setState({value})
+      }
+    })
+  }
+
+  render({text, min, max, step = 1}, {value}) {
+    return h(
+      'li',
+      {class: 'preferences-item'},
+      h(
+        'label',
+        {},
+        h('span', {}, text, ' '),
+        h('input', {
+          type: 'number',
+          min,
+          max,
+          step,
+          value,
+          onChange: this.handleChange
+        })
+      )
+    )
+  }
+}
+
 class GeneralTab extends Component {
   constructor(props) {
     super(props)
@@ -331,6 +374,25 @@ class GeneralTab extends Component {
         h(PreferencesItem, {
           id: 'board.heatmap_show_intensity',
           text: t('Show different heatmap color intensities')
+        })
+      ),
+
+      h(
+        'ul',
+        {},
+        h(NumberSettingItem, {
+          id: 'review.winrate_drop_threshold',
+          text: t('Game review winrate drop threshold (%):'),
+          min: 1,
+          max: 50,
+          step: 1
+        }),
+        h(NumberSettingItem, {
+          id: 'review.visits',
+          text: t('Game review KataGo visits per move:'),
+          min: 10,
+          max: 2000,
+          step: 10
         })
       )
     )

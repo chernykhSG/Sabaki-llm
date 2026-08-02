@@ -957,6 +957,66 @@ button:active {
   background: rgba(0, 0, 0, 0.2);
 }
 
+#game-review {
+  height: 320px;
+}
+#game-review.show {
+  transform: translateY(-370px);
+}
+#game-review .game-review-description {
+  margin: 0 0 10px;
+  opacity: 0.8;
+  font-size: 0.9em;
+}
+#game-review .game-review-error {
+  color: #ff8a80;
+}
+#game-review .game-review-progress,
+#game-review .game-review-status {
+  margin: 0 0 10px;
+  font-size: 0.9em;
+}
+#game-review .game-review-table {
+  width: 100%;
+  max-height: 170px;
+  overflow-y: auto;
+  display: block;
+  border-collapse: collapse;
+}
+#game-review .game-review-table thead,
+#game-review .game-review-table tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+#game-review .game-review-table th,
+#game-review .game-review-table td {
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 0.85em;
+}
+#game-review .game-review-table th {
+  font-weight: normal;
+  text-transform: uppercase;
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+#game-review .game-review-row {
+  cursor: pointer;
+}
+#game-review .game-review-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+#game-review .game-review-row .loss {
+  color: #ff8a80;
+}
+#game-review form p {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  margin: 0;
+}
+
 #preferences {
   bottom: -440px;
   height: 400px;

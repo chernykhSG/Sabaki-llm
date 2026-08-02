@@ -181,6 +181,8 @@ let defaults = {
   'gtp.console_log_path': null,
   'gtp.engine_quit_timeout': 3000,
   'gtp.move_delay': 300,
+  'review.winrate_drop_threshold': 8,
+  'review.visits': 100,
   'score.estimator_iterations': 100,
   'scoring.method': 'territory',
   'setting.overwrite.v0.19.1': ['app.startup_check_updates_delay'],
