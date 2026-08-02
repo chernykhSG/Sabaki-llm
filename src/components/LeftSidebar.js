@@ -4,7 +4,7 @@ import {h, Component} from 'preact'
 import SplitContainer from './helpers/SplitContainer.js'
 import GtpConsole from './sidebars/GtpConsole.js'
 import {EnginePeerList} from './sidebars/PeerList.js'
-import GolaxyLivePanel from './GolaxyLivePanel.js'
+import GolaxyLivePanel from '../plugins/llm-coach/golaxy/GolaxyLivePanel.js'
 
 const setting = remote.require('./setting')
 const i18n = remote.require('./i18n')

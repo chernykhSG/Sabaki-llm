@@ -1,0 +1,102 @@
+# Task Plan: Плагинная архитектура для LLM-слоя + подготовка к обновлению апстрима
+
+## Goal
+Физически вынести весь LLM/агентский функционал в `src/plugins/llm-coach/`
+за узкую точку подключения (`sabaki.registerPlugin`), чтобы в будущем ядро
+Sabaki можно было мерджить с апстримом SabakiHQ/Sabaki с минимумом
+конфликтов — без самого merge в этом заходе.
+
+## Next Step
+Реализовать `sabaki.registerPlugin()` в `src/modules/sabaki.js` и
+`src/plugins/llm-coach/index.js` (Phase 2).
+
+## Current Phase
+Phase 2
+
+## Phases
+
+### Phase 1: Физический перенос файлов
+- [x] Создать структуру `src/plugins/llm-coach/{agents,llm,mcp,rag,review,golaxy,ui}/`
+- [x] `git mv` 21 LLM-файл + `commands.js` (список — см. findings.md; итоговое число
+      файлов — 21, не 25 как было в первой оценке агента)
+- [x] Поправить относительные импорты внутри перенесённых файлов (плюс попутно
+      найдены и поправлены ссылки на старые пути СНАРУЖИ плагина: `sabaki.js`,
+      `DrawerManager.js`, `LeftSidebar.js`, `index.html`, 7 тестовых файлов)
+- [x] Поправить путь в `test/test_game_review_math.js`
+- [x] `npm run bundle` — без ошибок (только 5 старых warning)
+- [x] `node run_tests.js` — 8/8 тестов проходят
+- **Status:** complete
+
+### Phase 2: `sabaki.registerPlugin()`
+- [x] В `src/modules/sabaki.js`: заменить 3 инициализации на `this.plugins = new Map()`
+      + `this.pluginMenuItems = []` + `this.pluginDrawers = []` + `this.registerPlugin(llmCoachPlugin)`
+- [x] Добавить методы `registerPlugin(plugin)`/`getPlugin(id)` рядом с существующим
+      LLM-блоком методов в конце класса (блок sendLLMMessage и т.д. не тронут)
+- [x] Создать `src/plugins/llm-coach/index.js` с `init(sabaki)`, который сам
+      наполняет `sabaki.pluginMenuItems`/`sabaki.pluginDrawers` (не статический
+      экспорт — замыкание над реальным `sabaki`, проще и без доп. передачи параметров)
+- [x] `DrawerManager.js`: убрал импорты AIChatDrawer/GameReviewDrawer, заменил
+      ручные `h(...)` на `...sabaki.pluginDrawers.map(...)` (читает `sabaki`
+      singleton напрямую, не через props) — заодно починился баг `show: true`
+- [x] `menu.js`: пункт Game Review — через `sabaki.pluginMenuItems`, с i18n.t()
+      внутри `index.js` (иначе перевод из ru.i18n.js потерялся бы)
+- [x] `npm run bundle` — без ошибок; `node run_tests.js` — 8/8
+- **Status:** complete
+- **Отклонение от исходного плана:** `App.js`-строку `sabaki.openDrawer('ai-chat')`
+  решил НЕ трогать (план предполагал завести её через реестр плагина). При
+  реализации оказалось, что это самодостаточный вызов без единого импорта
+  LLM-кода — реальной конфликтной поверхности для будущего merge не создаёт,
+  а обёртка вида `sabaki.getPlugin('llm-coach')?.onAppReady?.(sabaki)` добавила
+  бы косвенность без выигрыша. См. также риск синхронности: перенос
+  инициализации aiManager/agentOrchestrator/boardDisplayController из
+  конструктора Sabaki в componentDidMount (App.js) сдвинул бы момент их
+  появления с "сразу при первом импорте sabaki.js" на "после первого рендера" —
+  решил оставить `registerPlugin` вызовом внутри конструктора, чтобы не менять
+  тайминг существующего поведения.
+
+### Phase 3: `pluginEngineAdapter.js`
+- [ ] Вынести `resolveEngineSyncer()` из `gameReviewer.js` в
+      `src/plugins/llm-coach/mcp/pluginEngineAdapter.js`
+- [ ] Переключить `gameReviewer.js` на адаптер
+- [ ] Переключить 4 места дублирования в `mcpHelper.js` на адаптер
+- **Status:** pending
+
+### Phase 4: Обвязка и git-подготовка
+- [ ] `package.json.build.files`: добавить `"!src/plugins${/*}"`
+- [ ] Добавить `upstream` remote (`git remote add upstream https://github.com/SabakiHQ/Sabaki.git`)
+- [ ] Написать `docs/guides/upstream-merge.md` (runbook будущего merge)
+- **Status:** pending
+
+### Phase 5: Верификация и коммиты
+- [ ] `npm run bundle` — без новых ошибок/warning
+- [ ] `node run_tests.js` — все тесты проходят
+- [ ] `npm start` — ручная проверка: AI Chat через меню, Game Review работает
+- [ ] Атомарные коммиты по каждому логическому шагу (перенос / registerPlugin /
+      adapter / build.files+remote)
+- [ ] `git push`
+- **Status:** pending
+
+## Key Questions
+1. Нужно ли переносить `llm_prompts/` и docs-файлы в этот же заход? — Нет,
+   осознанно отложено (см. план, раздел "Не входит").
+2. Нужно ли делать сам `git merge upstream/v0.60.2` сейчас? — Нет, отдельный
+   Phase 2 проекта (не этого файла), после стабилизации этого инкремента.
+
+## Decisions Made
+| Decision | Rationale |
+|----------|-----------|
+| git merge (не submodule/subtree) для апстрима | История общая и линейная с 2015 года, git сам найдёт base commit |
+| Физический перенос ДО merge, не одновременно | Сужает конфликтную поверхность в sabaki.js/App.js/menu.js/DrawerManager.js перед мерджем |
+| @electron/remote → IPC миграция — в Phase 2, не сейчас | 27 из 37 файлов с remote уже были такими на момент форка — приедут с мерджем автоматически; наши 8 plugin-файлов мигрировать вручную позже |
+| commands.js переносим в плагин, не оставляем в ядре | Единственный потребитель — mcpHelper.js, апстрим этот файл не создавал и не расширяет |
+| Единый pluginEngineAdapter.js вместо 5 разрозненных мест создания EngineSyncer | mcpHelper.js дублирует resolveEngineSyncer() из gameReviewer.js в 4 местах — хрупкая точка, апстрим уже один раз рефакторил enginesyncer.js |
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| webpack: `Can't resolve './GolaxyLivePanel.js' in .../src/components` | 1 | `LeftSidebar.js` импортировал `GolaxyLivePanel.js` — мой первый grep-поиск был case-sensitive и не поймал `Golaxy...` (искал `golaxy` строчными). Исправлено на `../plugins/llm-coach/golaxy/GolaxyLivePanel.js`, пересборка прошла чисто |
+
+## Notes
+- Полный контекст решений и сырые находки — в `findings.md`.
+- Хронология сессии и результаты команд — в `progress.md`.
+- Исходный план (утверждён в Plan Mode) — `C:\Users\User\.claude\plans\melodic-snuggling-oasis.md`.

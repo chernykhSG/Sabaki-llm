@@ -2,11 +2,11 @@ import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 
-import i18n from '../../i18n.js'
-import sabaki from '../../modules/sabaki.js'
-import {startReview} from '../../modules/gameReviewer.js'
+import i18n from '../../../i18n.js'
+import sabaki from '../../../modules/sabaki.js'
+import {startReview} from '../review/gameReviewer.js'
 
-import Drawer from './Drawer.js'
+import Drawer from '../../../components/drawers/Drawer.js'
 
 const t = i18n.context('GameReviewDrawer')
 const setting = remote.require('./setting')

@@ -1,4 +1,4 @@
-const agentOrchestrator = require('./src/modules/agentOrchestrator.js').default
+const agentOrchestrator = require('./src/plugins/llm-coach/agents/agentOrchestrator.js').default
 
 async function testToolCompatibility() {
   console.log('开始测试_executeTool方法的兼容性...')

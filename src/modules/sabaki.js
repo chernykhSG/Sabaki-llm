@@ -19,9 +19,7 @@ import * as gobantransformer from './gobantransformer.js'
 import * as gtplogger from './gtplogger.js'
 import * as helper from './helper.js'
 import * as sound from './sound.js'
-import AIManager from './aiManager.js'
-import {AgentOrchestrator} from './agentOrchestrator.js'
-import BoardDisplayController from './BoardDisplayController.js'
+import llmCoachPlugin from '../plugins/llm-coach/index.js'
 
 deadstones.useFetch('./node_modules/@sabaki/deadstones/wasm/deadstones_bg.wasm')
 
@@ -123,14 +121,12 @@ class Sabaki extends EventEmitter {
     this.history = []
     this.recordHistory()
 
-    // Initialize AI manager
-    this.aiManager = new AIManager(this)
-
-    // Initialize Agent Orchestrator
-    this.agentOrchestrator = new AgentOrchestrator()
-
-    // Initialize Board Display Controller
-    this.boardDisplayController = new BoardDisplayController(this)
+    // Реестр подключаемых плагинов (сейчас — единственный LLM-плагин,
+    // см. src/plugins/llm-coach/index.js)
+    this.plugins = new Map()
+    this.pluginMenuItems = []
+    this.pluginDrawers = []
+    this.registerPlugin(llmCoachPlugin)
 
     // Bind state to settings
 
@@ -3047,6 +3043,23 @@ class Sabaki extends EventEmitter {
       x,
       y
     )
+  }
+
+  /**
+   * Регистрирует плагин: сохраняет его в реестре и вызывает plugin.init(this).
+   * Единственная точка, через которую ядро подключает внешний функционал
+   * (см. src/plugins/llm-coach/index.js).
+   */
+  registerPlugin(plugin) {
+    this.plugins.set(plugin.id, plugin)
+
+    if (typeof plugin.init === 'function') {
+      plugin.init(this)
+    }
+  }
+
+  getPlugin(id) {
+    return this.plugins.get(id)
   }
 
   async sendLLMMessage(message, gameContext) {

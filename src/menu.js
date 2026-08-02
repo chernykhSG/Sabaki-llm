@@ -554,11 +554,9 @@ exports.get = function(props = {}) {
           label: i18n.t('menu.tools', '&Edit SGF Properties…'),
           click: () => sabaki.openDrawer('advancedproperties')
         },
-        {type: 'separator'},
-        {
-          label: i18n.t('menu.tools', '&Game Review…'),
-          click: () => sabaki.openDrawer('game-review')
-        }
+        ...(isRenderer && sabaki.pluginMenuItems.length > 0
+          ? [{type: 'separator'}, ...sabaki.pluginMenuItems]
+          : [])
       ]
     },
     {

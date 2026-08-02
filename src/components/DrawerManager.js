@@ -8,9 +8,6 @@ import PreferencesDrawer from './drawers/PreferencesDrawer.js'
 import GameChooserDrawer from './drawers/GameChooserDrawer.js'
 import CleanMarkupDrawer from './drawers/CleanMarkupDrawer.js'
 import AdvancedPropertiesDrawer from './drawers/AdvancedPropertiesDrawer.js'
-import AIChatDrawer from './drawers/AIChatDrawer.js'
-import GameReviewDrawer from './drawers/GameReviewDrawer.js'
-
 export default class DrawerManager extends Component {
   constructor() {
     super()
@@ -135,15 +132,12 @@ export default class DrawerManager extends Component {
         onSubmitButtonClick: this.handleScoreSubmit
       }),
 
-      h(AIChatDrawer, {
-        ...this.props,
-        show: true
-        // show: openDrawer === 'ai-chat'
-      }),
-
-      h(GameReviewDrawer, {
-        show: openDrawer === 'game-review'
-      })
+      ...sabaki.pluginDrawers.map(({key, component}) =>
+        h(component, {
+          ...this.props,
+          show: openDrawer === key
+        })
+      )
     )
   }
 }

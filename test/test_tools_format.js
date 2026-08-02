@@ -4,10 +4,10 @@ const fs = require('fs')
 try {
   // 读取修改后的文件内容
   const agentOrchestratorContent = fs.readFileSync(
-    './src/modules/agentOrchestrator.js',
+    './src/plugins/llm-coach/agents/agentOrchestrator.js',
     'utf8'
   )
-  const aiContent = fs.readFileSync('./src/modules/ai.js', 'utf8')
+  const aiContent = fs.readFileSync('./src/plugins/llm-coach/llm/ai.js', 'utf8')
 
   console.log('=== 工具列表格式化检查 ===')
 

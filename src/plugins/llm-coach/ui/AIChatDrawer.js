@@ -1,14 +1,14 @@
 import {createElement as h, Component} from 'preact/compat'
-import sabaki from '../../modules/sabaki.js'
-import i18n from '../../i18n.js'
-import TextSpinner from '../TextSpinner.js'
-import mcpHelper from '../../modules/mcpHelper.js'
-import Drawer from './Drawer.js'
+import sabaki from '../../../modules/sabaki.js'
+import i18n from '../../../i18n.js'
+import TextSpinner from '../../../components/TextSpinner.js'
+import mcpHelper from '../mcp/mcpHelper.js'
+import Drawer from '../../../components/drawers/Drawer.js'
 import {
   AgentOrchestrator,
-} from '../../modules/agentOrchestrator.js'
-import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from '../../modules/agent.js'
-import * as dialog from '../../modules/dialog.js'
+} from '../agents/agentOrchestrator.js'
+import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from '../agents/agent.js'
+import * as dialog from '../../../modules/dialog.js'
 
 const t = i18n.context('AIChatDrawer')
 
@@ -283,7 +283,7 @@ export default class AIChatDrawer extends Drawer {
   loadQuestionCategories = async () => {
     try {
       // 导入问题分类JSON文件
-      const response = await import('../../../llm_prompts/go_questions.json')
+      const response = await import('../../../../llm_prompts/go_questions.json')
       this.setState({questionCategories: response.default.categories})
     } catch (error) {
       console.error('Failed to load question categories:', error)

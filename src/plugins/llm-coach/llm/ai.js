@@ -1,9 +1,9 @@
 import * as remote from '@electron/remote'
 const setting = remote.require('./setting')
-import mcpHelper from './mcpHelper.js'
+import mcpHelper from '../mcp/mcpHelper.js'
 import {streamDefinition, hasApiKey} from 'llm-service-provider'
-import sabaki from './sabaki.js'
-import agentOrchestrator from './agentOrchestrator.js'
+import sabaki from '../../../modules/sabaki.js'
+import agentOrchestrator from '../agents/agentOrchestrator.js'
 import promptManager from './promptManager.js'
 
 class AIHelper {

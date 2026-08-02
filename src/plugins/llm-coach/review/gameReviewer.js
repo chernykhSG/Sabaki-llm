@@ -1,9 +1,9 @@
 import EventEmitter from 'events'
 import * as remote from '@electron/remote'
-import engineSyncer from './enginesyncer.js'
-import sabaki from './sabaki.js'
-import {getBoard} from './gametree.js'
-import i18n from '../i18n.js'
+import engineSyncer from '../../../modules/enginesyncer.js'
+import sabaki from '../../../modules/sabaki.js'
+import {getBoard} from '../../../modules/gametree.js'
+import i18n from '../../../i18n.js'
 import {
   moverSign,
   sideToMoveAt,

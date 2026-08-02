@@ -2,11 +2,11 @@ import * as remote from '@electron/remote'
 import {BoundedGoban} from '@sabaki/shudan'
 import sgf from '@sabaki/sgf'
 
-import * as gametree from './gametree.js'
-import * as gobantransformer from './gobantransformer.js'
-import * as helper from './helper.js'
-import sabaki from './sabaki.js'
-import setting from '../setting.js'
+import * as gametree from '../../../modules/gametree.js'
+import * as gobantransformer from '../../../modules/gobantransformer.js'
+import * as helper from '../../../modules/helper.js'
+import sabaki from '../../../modules/sabaki.js'
+import setting from '../../../setting.js'
 
 class GobanMCPEndpoints {
   constructor() {

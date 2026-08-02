@@ -20,7 +20,7 @@ class PromptManager {
   async loadPrompts() {
     try {
       // В окружении Electron используем динамический импорт
-      const promptsModule = await import('../../llm_prompts/prompts.json')
+      const promptsModule = await import('../../../../llm_prompts/prompts.json')
       this.prompts = promptsModule.default || promptsModule
       this.loaded = true
       return this.prompts

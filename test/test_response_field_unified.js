@@ -6,10 +6,20 @@ const agentOrchestratorPath = path.join(
   __dirname,
   '..',
   'src',
-  'modules',
+  'plugins',
+  'llm-coach',
+  'agents',
   'agentOrchestrator.js'
 )
-const aiPath = path.join(__dirname, '..', 'src', 'modules', 'ai.js')
+const aiPath = path.join(
+  __dirname,
+  '..',
+  'src',
+  'plugins',
+  'llm-coach',
+  'llm',
+  'ai.js'
+)
 
 const agentOrchestratorContent = fs.readFileSync(agentOrchestratorPath, 'utf8')
 const aiContent = fs.readFileSync(aiPath, 'utf8')

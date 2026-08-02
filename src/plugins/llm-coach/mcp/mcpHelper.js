@@ -1,7 +1,7 @@
 import * as remote from '@electron/remote'
 const setting = remote.require('./setting')
-import engineSyncer from './enginesyncer.js'
-import sabaki from './sabaki.js'
+import engineSyncer from '../../../modules/enginesyncer.js'
+import sabaki from '../../../modules/sabaki.js'
 import commands from './commands.js'
 class MCPHelper {
   constructor() {

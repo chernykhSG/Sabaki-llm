@@ -1,6 +1,6 @@
 const SGF = require('@sabaki/sgf')
 const GoCommunicate = require('./go_communicate')
-const i18n = require('../i18n')
+const i18n = require('../../../i18n')
 
 // 延迟导入sabaki模块，避免循环依赖
 let sabaki = null
@@ -323,14 +323,14 @@ class Golaxy extends GoCommunicate {
     if (!sabaki) {
       try {
         // 动态导入sabaki模块 - 使用ES模块导入语法
-        const sabakiModule = await import('../modules/sabaki.js')
+        const sabakiModule = await import('../../../modules/sabaki.js')
         sabaki = sabakiModule.default
         console.log('Модуль Sabaki успешно импортирован, экземпляр получен')
       } catch (importError) {
         console.error('Не удалось импортировать модуль Sabaki:', importError)
         // 尝试CommonJS导入作为备选方案
         try {
-          sabaki = require('../modules/sabaki')
+          sabaki = require('../../../modules/sabaki')
           console.log('Модуль Sabaki успешно импортирован через CommonJS')
         } catch (commonJsError) {
           console.error('Импорт через CommonJS также не удался:', commonJsError)
@@ -367,7 +367,7 @@ class Golaxy extends GoCommunicate {
         // 尝试直接使用正确的方式导入
         try {
           const directSabaki = window.require
-            ? window.require('../modules/sabaki')
+            ? window.require('../../../modules/sabaki')
             : null
           if (directSabaki && typeof directSabaki.loadContent === 'function') {
             console.log('Попытка использовать напрямую импортированный экземпляр sabaki')

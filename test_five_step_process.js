@@ -1,7 +1,7 @@
 // 五步问题解决流程测试脚本
 // 这个脚本用于测试AgentOrchestrator中的五步问题解决流程功能
 
-const {AgentOrchestrator} = require('./src/modules/agentOrchestrator')
+const {AgentOrchestrator} = require('./src/plugins/llm-coach/agents/agentOrchestrator')
 
 // 模拟AI助手，用于测试
 global.ai = {

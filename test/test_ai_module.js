@@ -4,10 +4,10 @@ const fs = require('fs')
 try {
   // 读取我们修改的文件
   const agentOrchestratorContent = fs.readFileSync(
-    './src/modules/agentOrchestrator.js',
+    './src/plugins/llm-coach/agents/agentOrchestrator.js',
     'utf8'
   )
-  const aiContent = fs.readFileSync('./src/modules/ai.js', 'utf8')
+  const aiContent = fs.readFileSync('./src/plugins/llm-coach/llm/ai.js', 'utf8')
 
   console.log('=== 语法检查 ===')
   console.log('agentOrchestrator.js 读取成功')

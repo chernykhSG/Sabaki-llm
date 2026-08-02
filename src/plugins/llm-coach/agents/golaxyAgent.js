@@ -1,4 +1,4 @@
-import {getLiveReports} from '../components/golaxy.js'
+import {getLiveReports} from '../golaxy/golaxy.js'
 import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from './agent.js'
 // Golaxy直播报告智能体类
 export class GolaxyLiveReportsAgent extends Agent {

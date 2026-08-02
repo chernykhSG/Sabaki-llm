@@ -1,4 +1,4 @@
-// Юнит-тест чистых функций разбора партии (src/modules/gameReviewMath.js).
+// Юнит-тест чистых функций разбора партии (src/plugins/llm-coach/review/gameReviewMath.js).
 // В отличие от большинства файлов в test/, этот действительно require()-ит
 // исходный модуль (а не текст файла) и падает с ненулевым кодом выхода при
 // провале assert — так его подхватывает run_tests.js.
@@ -13,7 +13,7 @@ const {
   toBlackWinrate,
   computeWinrateLoss,
   isSignificantMove
-} = require(path.join(__dirname, '..', 'src', 'modules', 'gameReviewMath.js'))
+} = require(path.join(__dirname, '..', 'src', 'plugins', 'llm-coach', 'review', 'gameReviewMath.js'))
 
 function node(data) {
   return {data}

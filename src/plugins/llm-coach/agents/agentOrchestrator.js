@@ -1,12 +1,12 @@
-import ai from './ai.js'
-import mcpHelper from './mcpHelper.js'
-import sabaki from './sabaki.js'
+import ai from '../llm/ai.js'
+import mcpHelper from '../mcp/mcpHelper.js'
+import sabaki from '../../../modules/sabaki.js'
 import {getSelectedServiceProvider} from 'llm-service-provider'
-import promptManager from './promptManager.js'
+import promptManager from '../llm/promptManager.js'
 import {Agent, AGENT_STATES, ERROR_TYPES, TOOL_TYPES} from './agent.js'
 import {GolaxyLiveReportsAgent} from './golaxyAgent.js'
-import * as gametree from '../modules/gametree.js'
-import ragManager from './ragManager.js'
+import * as gametree from '../../../modules/gametree.js'
+import ragManager from '../rag/ragManager.js'
 
 export class AgentOrchestrator extends Agent {
   constructor() {

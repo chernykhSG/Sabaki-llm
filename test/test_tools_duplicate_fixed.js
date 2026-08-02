@@ -2,7 +2,15 @@ const fs = require('fs')
 const path = require('path')
 
 // 读取修改后的ai.js文件
-const aiPath = path.join(__dirname, '..', 'src', 'modules', 'ai.js')
+const aiPath = path.join(
+  __dirname,
+  '..',
+  'src',
+  'plugins',
+  'llm-coach',
+  'llm',
+  'ai.js'
+)
 const aiContent = fs.readFileSync(aiPath, 'utf8')
 
 console.log('=== 验证工具列表重复问题修复 ===')

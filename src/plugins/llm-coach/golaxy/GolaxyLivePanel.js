@@ -1,5 +1,5 @@
 import {h, Component} from 'preact'
-import i18n from '../i18n.js'
+import i18n from '../../../i18n.js'
 import {getLiveReports, syncGolaxyOrYikeLizban, golaxy} from './golaxy.js'
 
 export default class GolaxyLivePanel extends Component {
