@@ -163,18 +163,18 @@ export default class AIChatDrawer extends Drawer {
     const createToolOrAgent = async () => {
       try {
         // 收集新工具/智能体信息
-        const entityName = await dialog.showInputBox(`请输入新${gapType === 'tool' ? '工具' : '智能体'}名称: (默认: ${gapName})`)
+        const entityName = await dialog.showInputBox(`Введите название нового ${gapType === 'tool' ? 'инструмента' : 'агента'}: (по умолчанию: ${gapName})`)
         if (entityName === null) return
-        
+
         const resolvedName = entityName.trim() || gapName
-        
-        const entityDescription = await dialog.showInputBox(`请输入${gapType === 'tool' ? '工具' : '智能体'}描述: (默认: ${gapDescription})`)
+
+        const entityDescription = await dialog.showInputBox(`Введите описание ${gapType === 'tool' ? 'инструмента' : 'агента'}: (по умолчанию: ${gapDescription})`)
         if (entityDescription === null) return
-        
+
         const resolvedDescription = entityDescription.trim() || gapDescription
-        
+
         const paramHint = requiredParameters?.join(', ') || ''
-        const entityParameters = await dialog.showInputBox(`请输入${gapType === 'tool' ? '工具' : '智能体'}参数(以逗号分隔): (${paramHint || '无默认参数'})`)
+        const entityParameters = await dialog.showInputBox(`Введите параметры ${gapType === 'tool' ? 'инструмента' : 'агента'} (через запятую): (${paramHint || 'нет параметров по умолчанию'})`)
         if (entityParameters === null) return
         
         // 构建新实体信息
@@ -191,22 +191,22 @@ export default class AIChatDrawer extends Drawer {
         }
         
         // 向用户显示新实体信息预览
-        const previewMessage = `新${gapType === 'tool' ? '工具' : '智能体'}信息已收集:\n名称: ${newEntityInfo.name}\n描述: ${newEntityInfo.description}\n参数: ${newEntityInfo.requiredParameters.join(', ')}\n理由: ${newEntityInfo.reason || '支持系统功能扩展'}\n\n请开发人员根据以上信息实现该${gapType === 'tool' ? '工具' : '智能体'}。`
+        const previewMessage = `Информация о новом ${gapType === 'tool' ? 'инструменте' : 'агенте'} собрана:\nНазвание: ${newEntityInfo.name}\nОписание: ${newEntityInfo.description}\nПараметры: ${newEntityInfo.requiredParameters.join(', ')}\nПричина: ${newEntityInfo.reason || 'расширение функциональности системы'}\n\nПопросите разработчика реализовать этот ${gapType === 'tool' ? 'инструмент' : 'агент'} на основе указанной информации.`
         dialog.showMessageBox(previewMessage, 'info')
-        
+
         // 触发工具注册流程
         this.registerNewTool(newEntityInfo)
       } catch (error) {
-        console.error('创建工具/智能体过程中出错:', error)
-        dialog.showMessageBox('创建工具/智能体失败，请稍后重试。', 'error')
+        console.error('Ошибка при создании инструмента/агента:', error)
+        dialog.showMessageBox('Не удалось создать инструмент/агента. Попробуйте ещё раз позже.', 'error')
       }
     }
-    
+
     // 显示确认对话框
     const result = dialog.showMessageBox(
-      `系统检测到能力缺口:\n\n${gapDescription}\n\n需要的类型: ${gapType === 'tool' ? '工具' : '智能体'}\n需要的理由: ${reason || '扩展系统功能'}\n\n是否创建新${gapType === 'tool' ? '工具' : '智能体'}?`,
+      `Система обнаружила пробел в возможностях:\n\n${gapDescription}\n\nТребуемый тип: ${gapType === 'tool' ? 'инструмент' : 'агент'}\nПричина: ${reason || 'расширение функциональности системы'}\n\nСоздать новый ${gapType === 'tool' ? 'инструмент' : 'агент'}?`,
       'question',
-      ['是', '否'],
+      ['Да', 'Нет'],
       1
     )
     
@@ -227,7 +227,7 @@ export default class AIChatDrawer extends Drawer {
           ...prevState.messages,
           {
             role: 'system',
-            content: `✅ 工具"${registeredTool.name}"已成功注册到系统中！\n现在可以在后续对话中使用该工具了。`
+            content: `✅ Инструмент "${registeredTool.name}" успешно зарегистрирован в системе!\nТеперь его можно использовать в дальнейшем диалоге.`
           }
         ]
       }));
@@ -240,7 +240,7 @@ export default class AIChatDrawer extends Drawer {
           ...prevState.messages,
           {
             role: 'error',
-            content: `❌ 工具注册失败: ${error.message}`
+            content: `❌ Не удалось зарегистрировать инструмент: ${error.message}`
           }
         ]
       }));
@@ -492,7 +492,7 @@ export default class AIChatDrawer extends Drawer {
         },
         messages: [
           ...updatedMessages,
-          {role: 'ai', content: '流程已取消。请使用消息中的按钮来控制流程。'}
+          {role: 'ai', content: 'Процесс отменён. Используйте кнопки в сообщениях для управления процессом.'}
         ],
         sending: false,
         agentStatus: AGENT_STATES.IDLE
@@ -502,7 +502,7 @@ export default class AIChatDrawer extends Drawer {
       this.setState({
         messages: [
           ...updatedMessages,
-          {role: 'error', content: error.message || '执行步骤时发生错误'}
+          {role: 'error', content: error.message || 'Ошибка при выполнении шага'}
         ],
         sending: false,
         agentStatus: AGENT_STATES.IDLE
@@ -561,14 +561,14 @@ export default class AIChatDrawer extends Drawer {
     // 添加一条消息说明级别变化
     const levelInfo = {
       '0':
-        '核心推理系统 (Level 0) - 仅包含基础语言模型，无工具、记忆或实时环境交互能力',
+        'Базовая система рассуждений (уровень 0) — только базовая языковая модель, без инструментов, памяти и взаимодействия со средой в реальном времени',
       '1':
-        '连接型问题解决者 (Level 1) - 可通过工具获取实时/外部数据，突破预训练知识局限',
+        'Решатель задач с подключением (уровень 1) — может получать актуальные/внешние данные через инструменты, выходя за рамки знаний, заложенных при обучении',
       '2':
-        '策略型问题解决者 (Level 2) - 具备复杂目标的战略规划能力，可完成多步骤任务',
-      '3': '协作式多智能体系统 (Level 3) - 由专业智能体团队协作完成复杂任务',
+        'Стратегический решатель задач (уровень 2) — способен стратегически планировать достижение сложных целей и выполнять многошаговые задачи',
+      '3': 'Совместная мультиагентная система (уровень 3) — сложные задачи решает команда специализированных агентов',
       '4':
-        '自进化系统 (Level 4) - 具备自主扩展能力，可识别自身能力缺口并动态创建新工具或智能体'
+        'Саморазвивающаяся система (уровень 4) — способна самостоятельно расширяться: выявляет пробелы в собственных возможностях и динамически создаёт новые инструменты или агентов'
     }
 
     this.setState(prevState => ({
@@ -576,7 +576,7 @@ export default class AIChatDrawer extends Drawer {
         ...prevState.messages,
         {
           role: 'system',
-          content: `已切换至${levelInfo[newLevel]}`
+          content: `Переключено на: ${levelInfo[newLevel]}`
         }
       ]
     }))
@@ -611,7 +611,7 @@ export default class AIChatDrawer extends Drawer {
       this.setState({
         messages: [
           ...updatedMessages,
-          {role: 'error', content: '无效的流程步骤。'}
+          {role: 'error', content: 'Недопустимый шаг процесса.'}
         ],
         sending: false,
         agentStatus: AGENT_STATES.IDLE
@@ -630,7 +630,7 @@ export default class AIChatDrawer extends Drawer {
         this.setState({
           messages: [
             ...updatedMessages,
-            {role: 'error', content: `执行步骤时出错: ${stepResult.error}`}
+            {role: 'error', content: `Ошибка при выполнении шага: ${stepResult.error}`}
           ],
           sending: false,
           agentStatus: AGENT_STATES.IDLE
@@ -644,36 +644,36 @@ export default class AIChatDrawer extends Drawer {
 
       // 添加详细信息显示
       if (stepResult.details) {
-        resultContent += '**详细信息:**\n\n'
+        resultContent += '**Подробности:**\n\n'
         // 避免直接使用JSON.stringify，使用更友好的格式化方式
         if (
           stepResult.details.summary &&
           stepResult.details.summary !== stepResult.content
         ) {
-          resultContent += `- 摘要: ${stepResult.details.summary}\n`
+          resultContent += `- Резюме: ${stepResult.details.summary}\n`
         }
         if (stepResult.details.analysis) {
-          resultContent += `\n**分析:**\n${stepResult.details.analysis}\n`
+          resultContent += `\n**Анализ:**\n${stepResult.details.analysis}\n`
         }
         if (stepResult.details.plan) {
-          resultContent += `\n**计划:**\n${stepResult.details.plan}\n`
+          resultContent += `\n**План:**\n${stepResult.details.plan}\n`
         }
         if (stepResult.details.actions) {
-          resultContent += `\n**执行操作:**\n${stepResult.details.actions}\n`
+          resultContent += `\n**Выполненные действия:**\n${stepResult.details.actions}\n`
         }
         if (stepResult.details.observation) {
-          resultContent += `\n**观察结果:**\n${stepResult.details.observation}\n`
+          resultContent += `\n**Результаты наблюдения:**\n${stepResult.details.observation}\n`
         }
         // 特别处理工具调用结果，确保工具结果正确显示
         if (
           stepResult.details.toolResults &&
           stepResult.details.toolResults.length > 0
         ) {
-          resultContent += '\n**工具调用结果:**\n'
+          resultContent += '\n**Результаты вызова инструментов:**\n'
           stepResult.details.toolResults.forEach((toolResult, index) => {
-            resultContent += `\n*工具 ${index + 1}: ${toolResult.toolName}*\n`
+            resultContent += `\n*Инструмент ${index + 1}: ${toolResult.toolName}*\n`
             if (toolResult.error) {
-              resultContent += `  - 错误: ${toolResult.error}\n`
+              resultContent += `  - Ошибка: ${toolResult.error}\n`
             } else if (toolResult.result) {
               // 格式化显示工具结果，避免过于冗长
               if (typeof toolResult.result === 'object') {
@@ -683,19 +683,19 @@ export default class AIChatDrawer extends Drawer {
                     typeof toolResult.result.data === 'object'
                       ? JSON.stringify(toolResult.result.data, null, 2)
                       : toolResult.result.data.toString()
-                  resultContent += `  - 数据: ${dataStr}\n`
+                  resultContent += `  - Данные: ${dataStr}\n`
                 } else if (toolResult.result.content) {
-                  resultContent += `  - 内容: ${toolResult.result.content}\n`
+                  resultContent += `  - Содержимое: ${toolResult.result.content}\n`
                 } else {
                   // 如果无法提取，使用简化的JSON
-                  resultContent += `  - 结果: ${JSON.stringify(
+                  resultContent += `  - Результат: ${JSON.stringify(
                     toolResult.result
                   ).substring(0, 200)}${
                     JSON.stringify(toolResult.result).length > 200 ? '...' : ''
                   }\n`
                 }
               } else {
-                resultContent += `  - 结果: ${toolResult.result}\n`
+                resultContent += `  - Результат: ${toolResult.result}\n`
               }
             }
           })
@@ -714,7 +714,7 @@ export default class AIChatDrawer extends Drawer {
             ].includes(key)
         )
         if (otherFields.length > 0) {
-          resultContent += '\n**其他信息:**\n'
+          resultContent += '\n**Прочая информация:**\n'
           otherFields.forEach(key => {
             if (stepResult.details[key]) {
               const value =
@@ -731,7 +731,7 @@ export default class AIChatDrawer extends Drawer {
       if (!stepResult.isLastStep) {
         // 移除文本提示，改为按钮交互
       } else {
-        resultContent += `\n✅ 所有步骤已完成！五步问题解决流程已成功结束。`
+        resultContent += `\n✅ Все шаги выполнены! Пятиэтапный процесс решения задачи успешно завершён.`
       }
 
       // 更新状态
@@ -746,7 +746,7 @@ export default class AIChatDrawer extends Drawer {
             // 添加按钮配置
             button: !stepResult.isLastStep
               ? {
-                  text: `继续：${
+                  text: `Продолжить: ${
                     fiveStepProcessState.processPlan[stepIndex + 1].name
                   }`,
                   action: 'continueFiveStepProcess',
@@ -775,7 +775,7 @@ export default class AIChatDrawer extends Drawer {
       this.setState({
         messages: [
           ...updatedMessages,
-          {role: 'error', content: error.message || '执行步骤时发生错误'}
+          {role: 'error', content: error.message || 'Ошибка при выполнении шага'}
         ],
         sending: false,
         agentStatus: AGENT_STATES.IDLE
@@ -1343,11 +1343,11 @@ export default class AIChatDrawer extends Drawer {
             onChange: this.handleAgentSystemLevelChange,
             className: 'agent-system-level-select'
           },
-          h('option', {value: '0'}, 'Level 0: 核心推理'),
-          h('option', {value: '1'}, 'Level 1: 连接工具'),
-          h('option', {value: '2'}, 'Level 2: 策略规划'),
-          h('option', {value: '3'}, 'Level 3: 多智能体协作'),
-          h('option', {value: '4'}, 'Level 4: 自进化系统')
+          h('option', {value: '0'}, 'Уровень 0: базовые рассуждения'),
+          h('option', {value: '1'}, 'Уровень 1: подключение инструментов'),
+          h('option', {value: '2'}, 'Уровень 2: стратегическое планирование'),
+          h('option', {value: '3'}, 'Уровень 3: взаимодействие агентов'),
+          h('option', {value: '4'}, 'Уровень 4: саморазвивающаяся система')
         ),
         h(
           'div',

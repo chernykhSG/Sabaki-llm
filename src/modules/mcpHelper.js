@@ -15,15 +15,15 @@ class MCPHelper {
 
     this.registerEndpoint({
       id: 'get-game-metadata',
-      name: '获取棋局元信息',
-      description: '提取当前棋局的元信息，如赛事、选手、等级、规则等',
+      name: 'Получить метаданные партии',
+      description: 'Извлекает метаданные текущей партии: турнир, игроки, ранги, правила и т.д.',
       type: 'info_retrieval',
       parameters: {
         type: 'object',
         properties: {
           includeEmptyFields: {
             type: 'boolean',
-            description: '是否包含空字段',
+            description: 'Включать ли пустые поля',
             default: false
           }
         }
@@ -33,16 +33,16 @@ class MCPHelper {
 
     this.registerEndpoint({
       id: 'get-game-info',
-      name: '获取棋局详细信息',
+      name: 'Получить подробную информацию о партии',
       description:
-        '提取当前棋局的详细信息，包括赛事、选手、等级、规则等，并以格式化字符串返回',
+        'Извлекает подробную информацию о текущей партии (турнир, игроки, ранги, правила и т.д.) и возвращает её в виде форматированной строки',
       type: 'info_retrieval',
       parameters: {
         type: 'object',
         properties: {
           format: {
             type: 'string',
-            description: '返回格式，可以是text或object',
+            description: 'Формат ответа: text или object',
             enum: ['text', 'object'],
             default: 'text'
           }
@@ -53,19 +53,19 @@ class MCPHelper {
 
     this.registerEndpoint({
       id: 'katago-analysis',
-      name: 'KataGo分析',
-      description: '使用KataGo分析当前棋局，提供胜率、最佳着法等信息',
+      name: 'Анализ KataGo',
+      description: 'Анализирует текущую партию с помощью KataGo: даёт процент побед, лучшие ходы и другую информацию',
       parameters: {
         type: 'object',
         properties: {
           lookahead: {
             type: 'number',
-            description: '分析步数',
+            description: 'Количество рассматриваемых вариантов',
             default: 5
           },
           visits: {
             type: 'number',
-            description: '分析访问量',
+            description: 'Количество playout-ов анализа',
             default: 100
           }
         }
@@ -75,14 +75,14 @@ class MCPHelper {
 
     this.registerEndpoint({
       id: 'katago-score',
-      name: 'KataGo评分',
-      description: '使用KataGo对当前棋局进行形势判断',
+      name: 'Оценка KataGo',
+      description: 'Оценивает текущую позицию на доске с помощью KataGo',
       parameters: {
         type: 'object',
         properties: {
           visits: {
             type: 'number',
-            description: '分析访问量',
+            description: 'Количество playout-ов анализа',
             default: 50
           }
         }
@@ -124,7 +124,7 @@ class MCPHelper {
           properties: {
             args: {
               type: 'array',
-              description: '命令参数列表',
+              description: 'Список аргументов команды',
               items: {
                 type: 'string'
               },
@@ -141,7 +141,7 @@ class MCPHelper {
           properties: {
             color: {
               type: 'string',
-              description: '要生成的棋子颜色，必须是B(黑)或W(白)',
+              description: 'Цвет камня, которым нужно сходить: B (чёрные) или W (белые)',
               enum: ['B', 'W']
             }
           }
@@ -153,12 +153,12 @@ class MCPHelper {
           properties: {
             color: {
               type: 'string',
-              description: '落子颜色，必须是B(黑)或W(白)',
+              description: 'Цвет камня, которым делается ход: B (чёрные) или W (белые)',
               enum: ['B', 'W']
             },
             vertex: {
               type: 'string',
-              description: '落子位置，如A1、T19或pass'
+              description: 'Позиция хода, например A1, T19 или pass'
             }
           }
         }
@@ -169,7 +169,7 @@ class MCPHelper {
           properties: {
             size: {
               type: 'integer',
-              description: '棋盘大小，如9、13、19等',
+              description: 'Размер доски, например 9, 13, 19 и т.д.',
               minimum: 1
             }
           }
@@ -181,12 +181,12 @@ class MCPHelper {
           properties: {
             width: {
               type: 'integer',
-              description: '棋盘宽度',
+              description: 'Ширина доски',
               minimum: 1
             },
             height: {
               type: 'integer',
-              description: '棋盘高度',
+              description: 'Высота доски',
               minimum: 1
             }
           }
@@ -198,7 +198,7 @@ class MCPHelper {
           properties: {
             value: {
               type: 'number',
-              description: '贴目值'
+              description: 'Значение коми'
             }
           }
         }
@@ -209,7 +209,7 @@ class MCPHelper {
           properties: {
             command: {
               type: 'string',
-              description: '要检查的命令名称'
+              description: 'Название команды для проверки'
             }
           }
         }
@@ -221,7 +221,7 @@ class MCPHelper {
             rules: {
               type: 'string',
               description:
-                '规则设置，可以是JSON字典或规则简写（如tromp-taylor、chinese-kgs、aga等）'
+                'Настройка правил: JSON-словарь или краткое обозначение правил (например, tromp-taylor, chinese-kgs, aga и т.д.)'
             }
           }
         }
@@ -231,24 +231,24 @@ class MCPHelper {
           properties: {
             player: {
               type: 'string',
-              description: '指定分析方，B或W',
+              description: 'Сторона, для которой выполняется анализ: B или W',
               enum: ['B', 'W']
             },
             interval: {
               type: 'integer',
-              description: '分析间隔'
+              description: 'Интервал анализа'
             },
             rootInfo: {
               type: 'boolean',
-              description: '是否包含根节点信息'
+              description: 'Включать ли информацию о корневом узле'
             },
             ownership: {
               type: 'boolean',
-              description: '是否包含所有权信息'
+              description: 'Включать ли информацию о владении территорией'
             },
             pvVisits: {
               type: 'boolean',
-              description: '是否包含变例访问信息'
+              description: 'Включать ли информацию о посещениях вариантов'
             }
           }
         }
@@ -259,7 +259,7 @@ class MCPHelper {
           properties: {
             symmetry: {
               type: ['integer', 'string'],
-              description: '对称性参数，0-7的整数或all',
+              description: 'Параметр симметрии: целое число от 0 до 7 или all',
               enum: [0, 1, 2, 3, 4, 5, 6, 7, 'all']
             }
           }
@@ -271,13 +271,13 @@ class MCPHelper {
           properties: {
             symmetry: {
               type: ['integer', 'string'],
-              description: '对称性参数，0-7的整数或all',
+              description: 'Параметр симметрии: целое число от 0 до 7 или all',
               enum: [0, 1, 2, 3, 4, 5, 6, 7, 'all']
             }
           },
           dependencies: {
             'human-model': {
-              description: '需要通过命令行参数 -human-model 提供人类模型文件'
+              description: 'Требуется указать файл человеческой модели через аргумент командной строки -human-model'
             }
           }
         }
@@ -288,7 +288,7 @@ class MCPHelper {
           properties: {
             nVisits: {
               type: 'integer',
-              description: '基准测试的访问次数'
+              description: 'Количество посещений для бенчмарка'
             }
           }
         }
@@ -299,7 +299,7 @@ class MCPHelper {
           properties: {
             param: {
               type: 'string',
-              description: '要获取的参数名称'
+              description: 'Название получаемого параметра'
             }
           }
         }
@@ -310,11 +310,11 @@ class MCPHelper {
           properties: {
             param: {
               type: 'string',
-              description: '要设置的参数名称'
+              description: 'Название устанавливаемого параметра'
             },
             value: {
               type: ['string', 'number', 'boolean'],
-              description: '要设置的参数值'
+              description: 'Устанавливаемое значение параметра'
             }
           }
         }
@@ -325,7 +325,7 @@ class MCPHelper {
             position: {
               type: 'string',
               description:
-                '空格分隔的颜色-顶点对序列，如 "B a1 W b1" (顶点坐标使用小写字母)'
+                'Последовательность пар "цвет-позиция", разделённых пробелами, например "B a1 W b1" (координаты в нижнем регистре)'
             }
           }
         }
@@ -336,7 +336,7 @@ class MCPHelper {
           properties: {
             rules: {
               type: 'string',
-              description: 'KGS规则设置，如chinese、japanese、aga等'
+              description: 'Настройка правил KGS, например chinese, japanese, aga и т.д.'
             }
           }
         }
@@ -347,15 +347,15 @@ class MCPHelper {
           properties: {
             mainTime: {
               type: 'integer',
-              description: '主时间（秒）'
+              description: 'Основное время (секунды)'
             },
             byoYomiTime: {
               type: 'integer',
-              description: '读秒时间（秒）'
+              description: 'Время бёи-ёми (секунды)'
             },
             byoYomiStones: {
               type: 'integer',
-              description: '读秒次数'
+              description: 'Количество периодов бёи-ёми'
             }
           }
         }
@@ -366,15 +366,15 @@ class MCPHelper {
           properties: {
             mainTime: {
               type: 'integer',
-              description: '主时间（秒）'
+              description: 'Основное время (секунды)'
             },
             byoYomiTime: {
               type: 'integer',
-              description: '每读秒周期时间（秒）'
+              description: 'Время одного периода бёи-ёми (секунды)'
             },
             byoYomiPeriods: {
               type: 'integer',
-              description: '读秒周期数'
+              description: 'Количество периодов бёи-ёми'
             }
           }
         }
@@ -385,16 +385,16 @@ class MCPHelper {
           properties: {
             color: {
               type: 'string',
-              description: '颜色，B或W',
+              description: 'Цвет: B или W',
               enum: ['B', 'W']
             },
             time: {
               type: 'integer',
-              description: '剩余时间（秒）'
+              description: 'Оставшееся время (секунды)'
             },
             stones: {
               type: 'integer',
-              description: '剩余读秒次数'
+              description: 'Оставшееся количество периодов бёи-ёми'
             }
           }
         }
@@ -405,7 +405,7 @@ class MCPHelper {
           properties: {
             n: {
               type: 'integer',
-              description: '让子数量（2-9）',
+              description: 'Количество форовых камней (2-9)',
               minimum: 2,
               maximum: 9
             }
@@ -418,7 +418,7 @@ class MCPHelper {
           properties: {
             n: {
               type: 'integer',
-              description: '让子数量（2-9）',
+              description: 'Количество форовых камней (2-9)',
               minimum: 2,
               maximum: 9
             }
@@ -431,7 +431,7 @@ class MCPHelper {
           properties: {
             vertices: {
               type: 'array',
-              description: '让子位置列表，如["A1", "T19"]',
+              description: 'Список позиций форовых камней, например ["A1", "T19"]',
               items: {
                 type: 'string'
               }
@@ -448,12 +448,12 @@ class MCPHelper {
           properties: {
             color: {
               type: 'string',
-              description: '要生成的棋子颜色，必须是B(黑)或W(白)',
+              description: 'Цвет камня, которым нужно сходить: B (чёрные) или W (белые)',
               enum: ['B', 'W']
             },
             visits: {
               type: 'integer',
-              description: '分析访问量'
+              description: 'Количество playout-ов анализа'
             }
           }
         }
@@ -463,7 +463,7 @@ class MCPHelper {
           properties: {
             visits: {
               type: 'integer',
-              description: '分析访问量'
+              description: 'Количество playout-ов анализа'
             }
           }
         }
@@ -484,7 +484,7 @@ class MCPHelper {
           properties: {
             type: {
               type: 'string',
-              description: '缓存类型（可选）'
+              description: 'Тип кэша (необязательно)'
             }
           }
         }
@@ -495,11 +495,11 @@ class MCPHelper {
           properties: {
             rule: {
               type: 'string',
-              description: '规则名称'
+              description: 'Название правила'
             },
             value: {
               type: ['string', 'number', 'boolean'],
-              description: '规则值'
+              description: 'Значение правила'
             }
           }
         }
@@ -515,12 +515,12 @@ class MCPHelper {
           properties: {
             player: {
               type: 'string',
-              description: '搜索方，B或W',
+              description: 'Сторона поиска: B или W',
               enum: ['B', 'W']
             },
             visits: {
               type: 'integer',
-              description: '搜索访问量'
+              description: 'Количество playout-ов поиска'
             }
           }
         }
@@ -531,7 +531,7 @@ class MCPHelper {
           properties: {
             color: {
               type: 'string',
-              description: '要生成的棋子颜色，必须是B(黑)或W(白)',
+              description: 'Цвет камня, которым нужно сходить: B (чёрные) или W (белые)',
               enum: ['B', 'W']
             }
           }
@@ -543,15 +543,15 @@ class MCPHelper {
           properties: {
             mainTime: {
               type: 'integer',
-              description: '主时间（秒）'
+              description: 'Основное время (секунды)'
             },
             byoYomiTime: {
               type: 'integer',
-              description: '读秒时间（秒）'
+              description: 'Время бёи-ёми (секунды)'
             },
             byoYomiStones: {
               type: 'integer',
-              description: '读秒次数'
+              description: 'Количество периодов бёи-ёми'
             }
           }
         }
@@ -587,7 +587,7 @@ class MCPHelper {
           properties: {
             status: {
               type: 'string',
-              description: '要查询的状态类型（如dead、alive等）'
+              description: 'Тип запрашиваемого статуса (например, dead, alive и т.д.)'
             }
           }
         }
@@ -602,7 +602,7 @@ class MCPHelper {
           properties: {
             n: {
               type: 'integer',
-              description: '调试的步数'
+              description: 'Количество ходов для отладки'
             }
           }
         }
@@ -632,7 +632,7 @@ class MCPHelper {
           properties: {
             n: {
               type: 'integer',
-              description: '撤销的步数，默认为1'
+              description: 'Количество отменяемых ходов, по умолчанию 1'
             }
           }
         }
@@ -779,7 +779,7 @@ class MCPHelper {
       }
 
       if (!engine || !engine.path) {
-        return {error: '未配置KataGo引擎'}
+        return {error: 'Движок KataGo не настроен'}
       }
 
       syncer = new engineSyncer(engine)
@@ -846,7 +846,7 @@ class MCPHelper {
             ) {
               syncer.stop()
             }
-            resolve({error: '分析超时'})
+            resolve({error: 'Тайм-аут анализа'})
           })
           .catch(() => {
             // 如果命令发送失败，直接处理超时
@@ -858,7 +858,7 @@ class MCPHelper {
             ) {
               syncer.stop()
             }
-            resolve({error: '分析超时'})
+            resolve({error: 'Тайм-аут анализа'})
           })
       }, 100000)
     })
@@ -875,10 +875,10 @@ class MCPHelper {
     }
 
     if (!engine || !engine.path) {
-      return {data: {name: '未配置引擎'}}
+      return {data: {name: 'Движок не настроен'}}
     }
 
-    let engineName = engine.name || '未知引擎'
+    let engineName = engine.name || 'Неизвестный движок'
     return {data: {name: engineName}}
   }
 
@@ -904,7 +904,7 @@ class MCPHelper {
       }
 
       if (!engine || !engine.path) {
-        return {error: '未配置引擎'}
+        return {error: 'Движок не настроен'}
       }
 
       syncer = new engineSyncer(engine)
@@ -950,7 +950,7 @@ class MCPHelper {
       }
 
       if (!engine || !engine.path) {
-        return {error: '未配置KataGo引擎'}
+        return {error: 'Движок KataGo не настроен'}
       }
 
       syncer = new engineSyncer(engine)
@@ -974,10 +974,10 @@ class MCPHelper {
 
   async handleGTPCommand(command, args, gameContext) {
     if (command === 'genmove' && args.length < 1) {
-      return {command, args, response: '? 缺少颜色参数', success: false}
+      return {command, args, response: '? Отсутствует параметр цвета', success: false}
     }
     if (command === 'play' && args.length < 2) {
-      return {command, args, response: '? 缺少颜色或位置参数', success: false}
+      return {command, args, response: '? Отсутствует параметр цвета или позиции', success: false}
     }
     if (
       (command === 'boardsize' ||
@@ -992,7 +992,7 @@ class MCPHelper {
         command === 'kgs-rules') &&
       args.length < 1
     ) {
-      return {command, args, response: '? 缺少必要参数', success: false}
+      return {command, args, response: '? Отсутствует обязательный параметр', success: false}
     }
     if (
       (command === 'rectangular_boardsize' ||
@@ -1003,13 +1003,13 @@ class MCPHelper {
         command === 'time_left') &&
       args.length < 2
     ) {
-      return {command, args, response: '? 缺少必要参数', success: false}
+      return {command, args, response: '? Отсутствует обязательный параметр', success: false}
     }
     if (command === 'time_settings' && args.length < 3) {
       return {
         command,
         args,
-        response: '? 缺少完整的时间设置参数',
+        response: '? Отсутствуют полные параметры настройки времени',
         success: false
       }
     }
@@ -1017,7 +1017,7 @@ class MCPHelper {
       return {
         command,
         args,
-        response: '? 缺少完整的KGS时间设置参数',
+        response: '? Отсутствуют полные параметры настройки времени KGS',
         success: false
       }
     }
@@ -1026,17 +1026,17 @@ class MCPHelper {
       command === 'kata-genmove_analyze'
     ) {
       if (args.length < 1) {
-        return {command, args, response: '? 缺少颜色参数', success: false}
+        return {command, args, response: '? Отсутствует параметр цвета', success: false}
       }
       if (!['B', 'W'].includes(args[0].toUpperCase())) {
-        return {command, args, response: '? 颜色参数必须是B或W', success: false}
+        return {command, args, response: '? Параметр цвета должен быть B или W', success: false}
       }
     }
     if (command === 'loadsgf' && args.length < 1) {
-      return {command, args, response: '? 缺少SGF内容', success: false}
+      return {command, args, response: '? Отсутствует содержимое SGF', success: false}
     }
     if (command === 'kata-set-rule' && args.length < 2) {
-      return {command, args, response: '? 缺少规则名称或值', success: false}
+      return {command, args, response: '? Отсутствует название или значение правила', success: false}
     }
     if (command === 'fixed_handicap' || command === 'place_free_handicap') {
       if (args.length > 0) {
@@ -1045,7 +1045,7 @@ class MCPHelper {
           return {
             command,
             args,
-            response: '? 让子数量必须在2-9之间',
+            response: '? Количество форовых камней должно быть от 2 до 9',
             success: false
           }
         }
@@ -1055,7 +1055,7 @@ class MCPHelper {
       return {
         command,
         args,
-        response: '? play命令的第一个参数必须是B或W',
+        response: '? Первый параметр команды play должен быть B или W',
         success: false
       }
     }
@@ -1081,7 +1081,7 @@ class MCPHelper {
       }
 
       if (!engine || !engine.path) {
-        return {error: '未配置引擎'}
+        return {error: 'Движок не настроен'}
       }
 
       syncer = new engineSyncer(engine)
@@ -1127,7 +1127,7 @@ class MCPHelper {
   generateMCPMessage(endpointId, params) {
     let endpoint = this.mcpEndpoints.find(e => e.id === endpointId)
     if (!endpoint) {
-      return {error: `未知的MCP端点: ${endpointId}`}
+      return {error: `Неизвестная конечная точка MCP: ${endpointId}`}
     }
 
     return {
@@ -1149,7 +1149,7 @@ class MCPHelper {
         error: {
           code: -32600,
           message: 'Invalid Request',
-          data: '无效的MCP请求格式'
+          data: 'Некорректный формат MCP-запроса'
         }
       }
     }
@@ -1164,7 +1164,7 @@ class MCPHelper {
         error: {
           code: -32601,
           message: 'Method not found',
-          data: `未找到工具: ${toolName}`
+          data: `Инструмент не найден: ${toolName}`
         }
       }
     }
@@ -1176,13 +1176,13 @@ class MCPHelper {
       )
     } catch (error) {
       // 处理服务器错误
-      console.error(`MCP处理错误 - 工具: ${toolName}`, error)
+      console.error(`Ошибка обработки MCP - инструмент: ${toolName}`, error)
       return {
         jsonrpc: '2.0',
         error: {
           code: -32603,
           message: 'Internal error',
-          data: `服务器内部错误: ${error.message}`
+          data: `Внутренняя ошибка сервера: ${error.message}`
         }
       }
     }
@@ -1194,15 +1194,15 @@ class MCPHelper {
   registerGetBoardContext() {
     this.registerEndpoint({
       id: 'get-board-context',
-      name: '获取棋盘上下文',
-      description: '获取当前棋局的棋盘上下文信息，包含所有着法历史',
+      name: 'Получить контекст доски',
+      description: 'Получает контекстную информацию о доске текущей партии, включая всю историю ходов',
       type: 'info_retrieval', // 更新为信息检索类型
       parameters: {
         type: 'object',
         properties: {
           includeFullHistory: {
             type: 'boolean',
-            description: '是否包含完整的棋局历史',
+            description: 'Включать ли полную историю партии',
             default: true
           }
         }
@@ -1223,22 +1223,22 @@ class MCPHelper {
         gameContext?.gameTrees?.[gameContext.gameIndex] ||
         sabaki?.state?.gameTrees?.[sabaki.state.gameIndex]
       if (!tree || !tree.root) {
-        return {success: false, error: '没有找到当前棋局'}
+        return {success: false, error: 'Текущая партия не найдена'}
       }
 
       const rootNode = tree.root
       const metadata = {}
       const fieldMapping = {
-        GN: '赛事',
-        PB: '黑方',
-        PW: '白方',
-        BR: '黑方等级',
-        WR: '白方等级',
-        KM: '贴目',
-        RU: '规则',
-        SZ: '棋盘大小',
-        HA: '让子数',
-        RE: '结果'
+        GN: 'Турнир',
+        PB: 'Чёрные',
+        PW: 'Белые',
+        BR: 'Ранг чёрных',
+        WR: 'Ранг белых',
+        KM: 'Коми',
+        RU: 'Правила',
+        SZ: 'Размер доски',
+        HA: 'Число форовых камней',
+        RE: 'Результат'
       }
 
       // 提取元信息
@@ -1265,10 +1265,10 @@ class MCPHelper {
         }
       }
     } catch (error) {
-      console.error('获取棋局元信息失败:', error)
+      console.error('Не удалось получить метаданные партии:', error)
       return {
         success: false,
-        error: error.message || '获取棋局元信息失败'
+        error: error.message || 'Не удалось получить метаданные партии'
       }
     }
   }
@@ -1288,7 +1288,7 @@ class MCPHelper {
       if (!tree || !tree.root || !tree.root.data) {
         return {
           success: false,
-          error: '没有找到当前棋局或棋局数据'
+          error: 'Текущая партия или данные партии не найдены'
         }
       }
 
@@ -1297,23 +1297,23 @@ class MCPHelper {
       let metaInfo = []
 
       // 提取棋局元信息
-      if (rootNode.data.GN) metaInfo.push(`赛事: ${rootNode.data.GN}`)
-      if (rootNode.data.PB) metaInfo.push(`黑方: ${rootNode.data.PB}`)
-      if (rootNode.data.PW) metaInfo.push(`白方: ${rootNode.data.PW}`)
-      if (rootNode.data.BR) metaInfo.push(`黑方等级: ${rootNode.data.BR}`)
-      if (rootNode.data.WR) metaInfo.push(`白方等级: ${rootNode.data.WR}`)
-      if (rootNode.data.KM) metaInfo.push(`贴目: ${rootNode.data.KM}`)
-      if (rootNode.data.RU) metaInfo.push(`规则: ${rootNode.data.RU}`)
-      if (rootNode.data.SZ) metaInfo.push(`棋盘大小: ${rootNode.data.SZ}`)
-      if (rootNode.data.HA) metaInfo.push(`让子数: ${rootNode.data.HA}`)
-      if (rootNode.data.RE) metaInfo.push(`结果: ${rootNode.data.RE}`)
+      if (rootNode.data.GN) metaInfo.push(`Турнир: ${rootNode.data.GN}`)
+      if (rootNode.data.PB) metaInfo.push(`Чёрные: ${rootNode.data.PB}`)
+      if (rootNode.data.PW) metaInfo.push(`Белые: ${rootNode.data.PW}`)
+      if (rootNode.data.BR) metaInfo.push(`Ранг чёрных: ${rootNode.data.BR}`)
+      if (rootNode.data.WR) metaInfo.push(`Ранг белых: ${rootNode.data.WR}`)
+      if (rootNode.data.KM) metaInfo.push(`Коми: ${rootNode.data.KM}`)
+      if (rootNode.data.RU) metaInfo.push(`Правила: ${rootNode.data.RU}`)
+      if (rootNode.data.SZ) metaInfo.push(`Размер доски: ${rootNode.data.SZ}`)
+      if (rootNode.data.HA) metaInfo.push(`Число форовых камней: ${rootNode.data.HA}`)
+      if (rootNode.data.RE) metaInfo.push(`Результат: ${rootNode.data.RE}`)
 
       if (format === 'text') {
         // 返回格式化文本
         if (metaInfo.length > 0) {
-          gameInfo = '棋局信息:\n' + metaInfo.join('\n')
+          gameInfo = 'Информация о партии:\n' + metaInfo.join('\n')
         } else {
-          gameInfo = '未找到棋局元信息'
+          gameInfo = 'Метаданные партии не найдены'
         }
 
         return {
@@ -1324,16 +1324,16 @@ class MCPHelper {
         // 返回对象格式
         const metadata = {}
         const fieldMapping = {
-          GN: '赛事',
-          PB: '黑方',
-          PW: '白方',
-          BR: '黑方等级',
-          WR: '白方等级',
-          KM: '贴目',
-          RU: '规则',
-          SZ: '棋盘大小',
-          HA: '让子数',
-          RE: '结果'
+          GN: 'Турнир',
+          PB: 'Чёрные',
+          PW: 'Белые',
+          BR: 'Ранг чёрных',
+          WR: 'Ранг белых',
+          KM: 'Коми',
+          RU: 'Правила',
+          SZ: 'Размер доски',
+          HA: 'Число форовых камней',
+          RE: 'Результат'
         }
 
         Object.entries(fieldMapping).forEach(([key, label]) => {
@@ -1355,10 +1355,10 @@ class MCPHelper {
         }
       }
     } catch (error) {
-      console.error('获取棋局详细信息失败:', error)
+      console.error('Не удалось получить подробную информацию о партии:', error)
       return {
         success: false,
-        error: error.message || '获取棋局详细信息失败'
+        error: error.message || 'Не удалось получить подробную информацию о партии'
       }
     }
   }
@@ -1393,7 +1393,7 @@ class MCPHelper {
         }
       }
     } catch (error) {
-      console.log('获取棋盘上下文失败:', error)
+      console.log('Не удалось получить контекст доски:', error)
       return {
         success: false,
         error: error.message

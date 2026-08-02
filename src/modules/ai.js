@@ -14,7 +14,7 @@ class AIHelper {
     let result = []
 
     if (parameters.required && parameters.required.length > 0) {
-      result.push(`必填参数: ${parameters.required.join(', ')}`)
+      result.push(`Обязательные параметры: ${parameters.required.join(', ')}`)
     }
 
     if (parameters.properties) {
@@ -25,19 +25,19 @@ class AIHelper {
           propDesc += `: ${prop.description}`
         }
         if (prop.enum) {
-          propDesc += ` [可选值: ${prop.enum.join(', ')}]`
+          propDesc += ` [допустимые значения: ${prop.enum.join(', ')}]`
         }
         if (prop.minimum !== undefined) {
-          propDesc += ` [最小: ${prop.minimum}]`
+          propDesc += ` [минимум: ${prop.minimum}]`
         }
         propsInfo.push(propDesc)
       }
       if (propsInfo.length > 0) {
-        result.push(`参数详情: ${propsInfo.join('; ')}`)
+        result.push(`Параметры: ${propsInfo.join('; ')}`)
       }
     }
 
-    return result.length > 0 ? result.join(' | ') : '无'
+    return result.length > 0 ? result.join(' | ') : 'нет'
   }
 
   async sendLLMMessage(message, gameContext) {
@@ -52,12 +52,12 @@ class AIHelper {
     let fullMessage = userMessage
     if (Object.keys(parameters).length > 0) {
       const paramsStr = JSON.stringify(parameters)
-      fullMessage = `${userMessage}\n\n工具参数: ${paramsStr}`
+      fullMessage = `${userMessage}\n\nПараметры инструмента: ${paramsStr}`
     }
 
     let boardContext = await agentOrchestrator.getBoardContext(gameContext)
 
-    // 使用get-game-info工具获取棋局信息
+    // Получаем информацию о партии через инструмент get-game-info
     let gameInfo = ''
     const result_tool = await agentOrchestrator._executeTool({
       name: 'get-game-info',
@@ -77,13 +77,14 @@ class AIHelper {
       pre_prompt +
       '\n' +
       gameInfo +
-      '当前游戏状态:\n' +
+      'Текущее состояние партии:\n' +
       boardContext +
       '\n' +
-      '用户问题:' +
+      'Вопрос пользователя:' +
       fullMessage
 
-    const lang = setting.get('app.lang') == 'zh-Hans' ? 'zh' : 'en'
+    const appLang = (setting.get('app.lang') || 'ru').toLowerCase()
+    const lang = appLang.startsWith('en') ? 'en' : 'ru'
     const generator = streamDefinition({
       topic: prompt,
       language: lang,
@@ -107,16 +108,16 @@ class AIHelper {
 
     let parsedResponse = JSON.parse(result.replace(/```json|```/g, ''))
 
-    // 支持新的工具调用格式
+    // Поддержка нового формата вызова инструмента
     if (parsedResponse.action === 'tool_call' && parsedResponse.tool) {
-      // 转换为mcp格式
+      // Преобразуем в формат mcp
       parsedResponse = {
         mcp: {
           tool: {
             name: parsedResponse.tool.name,
             description:
               parsedResponse.tool.description ||
-              `调用工具: ${parsedResponse.tool.name}`,
+              `Вызов инструмента: ${parsedResponse.tool.name}`,
             parameters: parsedResponse.tool.parameters || {}
           }
         }
@@ -126,28 +127,28 @@ class AIHelper {
     if (parsedResponse.mcp && parsedResponse.mcp.tool) {
       let toolDescription = `${provider}: ${parsedResponse.mcp.tool.description}`
 
-      // 检查是否为人机协作工具
+      // Проверяем, требует ли инструмент участия человека
       const toolType =
         parsedResponse.mcp.tool.type ||
         (await this.getToolType(parsedResponse.mcp.tool.name))
 
-      // 人机协作工具处理逻辑
+      // Обработка инструментов человеко-машинного взаимодействия
       if (
         toolType === 'HUMAN_COLLABORATION' ||
         (this.humanCollaborationEnabled &&
           parsedResponse.mcp.tool.parameters?.humanCollaborationRequired)
       ) {
-        // 提示用户进行操作
+        // Просим пользователя выполнить действие
         const userAction = await this.promptUserAction(toolDescription)
 
-        // 如果用户取消操作
+        // Если пользователь отменил действие
         if (!userAction) {
           return {
-            content: `<div style="color: lightblue;">${toolDescription}</div><div style="color: yellow;">用户取消了操作</div>`
+            content: `<div style="color: lightblue;">${toolDescription}</div><div style="color: yellow;">Пользователь отменил операцию</div>`
           }
         }
 
-        // 将用户操作结果添加到参数中
+        // Добавляем результат действия пользователя в параметры
         parsedResponse.mcp.tool.parameters = {
           ...parsedResponse.mcp.tool.parameters,
           userAction: userAction
@@ -161,7 +162,7 @@ class AIHelper {
 
       if (toolResult.error) {
         return {
-          content: `<div style="color: lightblue;">${toolDescription}</div><div style="color: yellow;">工具调用失败: ${toolResult.error}</div>`
+          content: `<div style="color: lightblue;">${toolDescription}</div><div style="color: yellow;">Ошибка вызова инструмента: ${toolResult.error}</div>`
         }
       }
 
@@ -188,11 +189,11 @@ class AIHelper {
 
   async sendToolResultToAI(originalMessage, toolResult, gameContext) {
     try {
-      let prompt = `请总结以下工具执行结果，并以自然友好的语言回答用户的原始问题。
+      let prompt = `Обобщи результат выполнения инструмента и ответь на исходный вопрос пользователя естественным, дружелюбным языком.
 
-用户原始问题: ${originalMessage.description || originalMessage}
+Исходный вопрос пользователя: ${originalMessage.description || originalMessage}
 
-工具执行结果: ${JSON.stringify(toolResult, null, 2)}`
+Результат выполнения инструмента: ${JSON.stringify(toolResult, null, 2)}`
 
       let response = await this.sendLLMMessage(prompt, gameContext)
       return response
@@ -202,7 +203,9 @@ class AIHelper {
   }
 
   async handleToolDetailRequest(response, gameContext) {
-    const toolNameMatch = response.match(/我需要了解(.*?)工具的详细参数/i)
+    const toolNameMatch = response.match(
+      /мне нужны подробные параметры инструмента[:\s«"]*([^»".\n]+)/i
+    )
 
     if (toolNameMatch && toolNameMatch[1]) {
       const requestedToolName = toolNameMatch[1].trim()
@@ -210,9 +213,9 @@ class AIHelper {
 
       if (toolDetails) {
         let prompt =
-          `以下是您请求的${requestedToolName}工具的详细信息：\n${toolDetails}\n\n` +
-          '请基于这些信息，决定下一步操作。如果您想使用该工具，请使用工具调用格式；\n' +
-          '如果您已获得足够信息，可以直接回答用户的问题。'
+          `Вот подробная информация об инструменте ${requestedToolName}, которую вы запросили:\n${toolDetails}\n\n` +
+          'На основе этой информации реши, что делать дальше. Если хочешь использовать этот инструмент, используй формат вызова инструмента;\n' +
+          'если информации уже достаточно, можешь ответить пользователю напрямую.'
 
         return await this.sendLLMMessage(prompt, gameContext)
       }
@@ -234,50 +237,50 @@ class AIHelper {
     }
   }
 
-  // 获取工具类型
+  // Получить тип инструмента
   async getToolType(toolName) {
     try {
-      // 通过agentOrchestrator获取工具类型信息
+      // Получаем информацию о типе через agentOrchestrator
       const toolDetails = agentOrchestrator.getToolDetails(toolName)
       if (toolDetails && toolDetails.type) {
         return toolDetails.type
       }
 
-      // 如果没有获取到类型，从可用工具列表中查找
+      // Если тип не найден, ищем среди доступных инструментов
       const availableTools = await agentOrchestrator.getAvailableTools()
       const tool = availableTools.find(
         t => t.name === toolName || t.id === toolName
       )
-      return tool ? tool.type : 'EXECUTION' // 默认返回EXECUTION类型
+      return tool ? tool.type : 'EXECUTION' // По умолчанию — тип EXECUTION
     } catch (err) {
-      console.error('获取工具类型失败:', err)
-      return 'EXECUTION' // 出错时默认返回EXECUTION类型
+      console.error('Не удалось получить тип инструмента:', err)
+      return 'EXECUTION' // При ошибке — тип EXECUTION по умолчанию
     }
   }
 
-  // 设置人机协作开关
+  // Включает/выключает режим человеко-машинного взаимодействия
   setHumanCollaborationEnabled(enabled) {
     this.humanCollaborationEnabled = enabled
   }
 
-  // 提示用户进行操作
+  // Просит пользователя выполнить действие
   async promptUserAction(toolDescription) {
     return new Promise(resolve => {
-      // 使用Electron的对话框提示用户
+      // Показываем диалог Electron с просьбой к пользователю
       remote.dialog
         .showMessageBox({
           type: 'question',
-          title: '人机协作',
-          message: `需要您的操作以完成: ${toolDescription}`,
+          title: 'Человеко-машинное взаимодействие',
+          message: `Требуется ваше действие для выполнения: ${toolDescription}`,
           detail:
-            '请在棋盘上进行相应操作，然后确认。如果您想取消，请选择取消按钮。',
-          buttons: ['确认操作', '取消'],
+            'Пожалуйста, выполните соответствующее действие на доске, а затем подтвердите. Если хотите отменить — нажмите кнопку отмены.',
+          buttons: ['Подтвердить', 'Отмена'],
           defaultId: 0,
           cancelId: 1
         })
         .then(result => {
           if (result.response === 0) {
-            // 用户确认，可以获取当前棋盘状态作为用户操作结果
+            // Пользователь подтвердил — берём текущее состояние доски как результат действия
             const currentBoardState = sabaki.state.branch.currentNode.properties
             resolve(currentBoardState)
           } else {

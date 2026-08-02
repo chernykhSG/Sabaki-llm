@@ -53,14 +53,14 @@ class GobanMCPEndpoints {
   registerTransformationEndpoints() {
     this.registerEndpoint({
       id: 'goban-transform-rotate',
-      name: '旋转棋盘',
-      description: '旋转棋盘',
+      name: 'Поворот доски',
+      description: 'Поворачивает доску',
       parameters: {
         type: 'object',
         properties: {
           degrees: {
             type: 'number',
-            description: '旋转角度，支持90、180、270',
+            description: 'Угол поворота: поддерживаются значения 90, 180, 270',
             enum: [90, 180, 270],
             default: 90
           }
@@ -71,14 +71,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-transform-flip',
-      name: '翻转棋盘',
-      description: '水平或垂直翻转棋盘',
+      name: 'Отражение доски',
+      description: 'Отражает доску по горизонтали или вертикали',
       parameters: {
         type: 'object',
         properties: {
           axis: {
             type: 'string',
-            description: '翻转轴，horizontal为水平翻转，vertical为垂直翻转',
+            description:
+              'Ось отражения: horizontal — по горизонтали, vertical — по вертикали',
             enum: ['horizontal', 'vertical'],
             default: 'horizontal'
           }
@@ -89,16 +90,16 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-transform-invert',
-      name: '反转棋盘',
-      description: '反转棋盘颜色',
+      name: 'Инверсия доски',
+      description: 'Инвертирует цвета камней на доске',
       parameters: {},
       handler: this.handleTransformInvert.bind(this)
     })
 
     this.registerEndpoint({
       id: 'goban-transform-reset',
-      name: '重置变换',
-      description: '重置所有棋盘变换',
+      name: 'Сброс трансформаций',
+      description: 'Сбрасывает все трансформации доски',
       parameters: {},
       handler: this.handleTransformReset.bind(this)
     })
@@ -120,19 +121,20 @@ class GobanMCPEndpoints {
     markerTypes.forEach(type => {
       this.registerEndpoint({
         id: `goban-marker-${type}`,
-        name: `${this.getMarkerTypeName(type)}标记`,
-        description: `在指定位置添加${this.getMarkerTypeName(type)}标记`,
+        name: `Метка «${this.getMarkerTypeName(type)}»`,
+        description: `Добавляет метку «${this.getMarkerTypeName(type)}» в указанную позицию`,
         parameters: {
           type: 'object',
           required: ['vertex'],
           properties: {
             vertex: {
               type: 'string',
-              description: '标记位置，如A1、T19'
+              description: 'Позиция метки, например A1, T19'
             },
             label: {
               type: 'string',
-              description: '当标记类型为label或number时的文本内容'
+              description:
+                'Текст метки (используется, если тип метки — label или number)'
             }
           }
         },
@@ -142,15 +144,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-marker-remove',
-      name: '移除标记',
-      description: '移除指定位置的标记',
+      name: 'Удаление метки',
+      description: 'Удаляет метку в указанной позиции',
       parameters: {
         type: 'object',
         required: ['vertex'],
         properties: {
           vertex: {
             type: 'string',
-            description: '标记位置，如A1、T19'
+            description: 'Позиция метки, например A1, T19'
           }
         }
       },
@@ -159,8 +161,8 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-marker-clear-all',
-      name: '清除所有标记',
-      description: '清除棋盘上所有标记',
+      name: 'Очистка всех меток',
+      description: 'Удаляет все метки с доски',
       parameters: {},
       handler: this.handleClearAllMarkers.bind(this)
     })
@@ -172,23 +174,23 @@ class GobanMCPEndpoints {
   registerLineEndpoints() {
     this.registerEndpoint({
       id: 'goban-line-draw',
-      name: '绘制线条',
-      description: '在两点之间绘制线条',
+      name: 'Рисование линии',
+      description: 'Рисует линию между двумя точками',
       parameters: {
         type: 'object',
         required: ['v1', 'v2'],
         properties: {
           v1: {
             type: 'string',
-            description: '起始位置，如A1、T19'
+            description: 'Начальная позиция, например A1, T19'
           },
           v2: {
             type: 'string',
-            description: '结束位置，如A1、T19'
+            description: 'Конечная позиция, например A1, T19'
           },
           type: {
             type: 'string',
-            description: '线条类型，line为直线，arrow为箭头',
+            description: 'Тип линии: line — прямая линия, arrow — стрелка',
             enum: ['line', 'arrow'],
             default: 'line'
           }
@@ -199,19 +201,19 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-line-remove',
-      name: '移除线条',
-      description: '移除指定的线条',
+      name: 'Удаление линии',
+      description: 'Удаляет указанную линию',
       parameters: {
         type: 'object',
         required: ['v1', 'v2'],
         properties: {
           v1: {
             type: 'string',
-            description: '起始位置，如A1、T19'
+            description: 'Начальная позиция, например A1, T19'
           },
           v2: {
             type: 'string',
-            description: '结束位置，如A1、T19'
+            description: 'Конечная позиция, например A1, T19'
           }
         }
       },
@@ -220,8 +222,8 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-line-clear-all',
-      name: '清除所有线条',
-      description: '清除棋盘上所有线条',
+      name: 'Очистка всех линий',
+      description: 'Удаляет все линии с доски',
       parameters: {},
       handler: this.handleClearAllLines.bind(this)
     })
@@ -233,19 +235,20 @@ class GobanMCPEndpoints {
   registerDisplaySettingEndpoints() {
     this.registerEndpoint({
       id: 'goban-setting-coordinates',
-      name: '设置坐标显示',
-      description: '设置是否显示坐标',
+      name: 'Настройка отображения координат',
+      description: 'Включает или отключает отображение координат',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示坐标',
+            description: 'Показывать координаты',
             default: true
           },
           type: {
             type: 'string',
-            description: '坐标类型，可选值：A1, 1-1, relative, all-alpha',
+            description:
+              'Тип координат. Допустимые значения: A1, 1-1, relative, all-alpha',
             enum: ['A1', '1-1', 'relative', 'all-alpha']
           }
         }
@@ -255,14 +258,14 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-setting-move-numbers',
-      name: '设置落子编号',
-      description: '设置是否显示落子编号',
+      name: 'Настройка номеров ходов',
+      description: 'Включает или отключает отображение номеров ходов',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示落子编号',
+            description: 'Показывать номера ходов',
             default: false
           }
         }
@@ -272,14 +275,14 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-setting-next-moves',
-      name: '设置下一步预览',
-      description: '设置是否显示下一步预览',
+      name: 'Настройка предпросмотра следующего хода',
+      description: 'Включает или отключает предпросмотр следующего хода',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示下一步预览',
+            description: 'Показывать предпросмотр следующего хода',
             default: true
           }
         }
@@ -289,14 +292,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-setting-siblings',
-      name: '设置分支预览',
-      description: '设置是否显示分支预览',
+      name: 'Настройка предпросмотра вариантов',
+      description:
+        'Включает или отключает предпросмотр вариантов (соседних веток)',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示分支预览',
+            description: 'Показывать предпросмотр вариантов',
             default: true
           }
         }
@@ -311,15 +315,16 @@ class GobanMCPEndpoints {
   registerVariationEndpoints() {
     this.registerEndpoint({
       id: 'goban-variation-play',
-      name: '播放变化',
-      description: '播放指定的变化',
+      name: 'Воспроизведение варианта',
+      description: 'Воспроизводит указанный вариант',
       parameters: {
         type: 'object',
         required: ['moves'],
         properties: {
           moves: {
             type: 'array',
-            description: '变化的着法列表，每个着法为[x,y]坐标',
+            description:
+              'Список ходов варианта; каждый ход задаётся координатами [x, y]',
             items: {
               type: 'array',
               items: {
@@ -329,13 +334,13 @@ class GobanMCPEndpoints {
           },
           sign: {
             type: 'number',
-            description: '着法颜色，1为黑，-1为白',
+            description: 'Цвет хода: 1 — чёрные, -1 — белые',
             enum: [1, -1],
             default: 1
           },
           sibling: {
             type: 'boolean',
-            description: '是否为分支变化',
+            description: 'Является ли вариант побочной веткой',
             default: false
           }
         }
@@ -345,29 +350,29 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-variation-stop',
-      name: '停止播放',
-      description: '停止当前变化播放',
+      name: 'Остановка воспроизведения',
+      description: 'Останавливает текущее воспроизведение варианта',
       parameters: {},
       handler: this.handleStopPlayback.bind(this)
     })
 
     this.registerEndpoint({
       id: 'goban-variation-set-replay-mode',
-      name: '设置回放模式',
-      description: '设置变化回放模式',
+      name: 'Настройка режима воспроизведения',
+      description: 'Задаёт режим воспроизведения вариантов',
       parameters: {
         type: 'object',
         properties: {
           mode: {
             type: 'string',
             description:
-              '回放模式，instantly为立即显示，move_by_move为逐着显示',
+              'Режим воспроизведения: instantly — мгновенное отображение, move_by_move — пошаговое отображение',
             enum: ['instantly', 'move_by_move'],
             default: 'move_by_move'
           },
           interval: {
             type: 'number',
-            description: '逐着显示时的间隔时间（毫秒）',
+            description: 'Интервал между ходами при пошаговом отображении (в миллисекундах)',
             minimum: 100,
             maximum: 5000
           }
@@ -383,14 +388,14 @@ class GobanMCPEndpoints {
   registerHeatmapEndpoints() {
     this.registerEndpoint({
       id: 'goban-heatmap-toggle',
-      name: '切换热图显示',
-      description: '切换热图显示状态',
+      name: 'Переключение отображения тепловой карты',
+      description: 'Переключает состояние отображения тепловой карты',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示热图'
+            description: 'Показывать тепловую карту'
           }
         }
       },
@@ -399,14 +404,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-heatmap-set-intensity',
-      name: '设置热图强度显示',
-      description: '设置是否显示热图强度',
+      name: 'Настройка отображения интенсивности тепловой карты',
+      description:
+        'Включает или отключает отображение интенсивности тепловой карты',
       parameters: {
         type: 'object',
         properties: {
           show: {
             type: 'boolean',
-            description: '是否显示热图强度',
+            description: 'Показывать интенсивность тепловой карты',
             default: true
           }
         }
@@ -416,14 +422,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-heatmap-set-type',
-      name: '设置热图类型',
-      description: '设置热图显示类型',
+      name: 'Настройка типа тепловой карты',
+      description: 'Задаёт тип отображаемой тепловой карты',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
-            description: '热图类型，winrate为胜率，scoreLead为得分领先',
+            description:
+              'Тип тепловой карты: winrate — процент побед, scoreLead — разница в счёте',
             enum: ['winrate', 'scoreLead'],
             default: 'winrate'
           }
@@ -439,19 +446,19 @@ class GobanMCPEndpoints {
   registerBoardOperationEndpoints() {
     this.registerEndpoint({
       id: 'goban-place-stone',
-      name: '放置棋子',
-      description: '在指定位置放置棋子',
+      name: 'Размещение камня',
+      description: 'Ставит камень в указанную позицию',
       parameters: {
         type: 'object',
         required: ['vertex', 'color'],
         properties: {
           vertex: {
             type: 'string',
-            description: '放置位置，如A1、T19'
+            description: 'Позиция для размещения, например A1, T19'
           },
           color: {
             type: 'string',
-            description: '棋子颜色，B为黑，W为白',
+            description: 'Цвет камня: B — чёрный, W — белый',
             enum: ['B', 'W']
           }
         }
@@ -461,15 +468,15 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-remove-stone',
-      name: '移除棋子',
-      description: '移除指定位置的棋子',
+      name: 'Удаление камня',
+      description: 'Убирает камень с указанной позиции',
       parameters: {
         type: 'object',
         required: ['vertex'],
         properties: {
           vertex: {
             type: 'string',
-            description: '移除位置，如A1、T19'
+            description: 'Позиция для удаления, например A1, T19'
           }
         }
       },
@@ -478,16 +485,16 @@ class GobanMCPEndpoints {
 
     this.registerEndpoint({
       id: 'goban-clear-board',
-      name: '清空棋盘',
-      description: '清空棋盘上所有棋子',
+      name: 'Очистка доски',
+      description: 'Убирает с доски все камни',
       parameters: {},
       handler: this.handleClearBoard.bind(this)
     })
 
     this.registerEndpoint({
       id: 'goban-get-board-state',
-      name: '获取棋盘状态',
-      description: '获取当前棋盘状态信息',
+      name: 'Получение состояния доски',
+      description: 'Возвращает информацию о текущем состоянии доски',
       parameters: {},
       handler: this.handleGetBoardState.bind(this)
     })
@@ -498,12 +505,12 @@ class GobanMCPEndpoints {
    */
   getMarkerTypeName(type) {
     const typeNames = {
-      triangle: '三角形',
-      square: '方形',
-      circle: '圆形',
-      cross: '十字',
-      number: '数字',
-      label: '标签'
+      triangle: 'треугольник',
+      square: 'квадрат',
+      circle: 'круг',
+      cross: 'крест',
+      number: 'номер',
+      label: 'надпись'
     }
     return typeNames[type] || type
   }
@@ -623,7 +630,7 @@ class GobanMCPEndpoints {
       const coord = this.stringToVertex(vertex)
 
       if (!coord || coord[0] < 0 || coord[1] < 0) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       let markerData = {type}
@@ -648,7 +655,7 @@ class GobanMCPEndpoints {
       const coord = this.stringToVertex(vertex)
 
       if (!coord || coord[0] < 0 || coord[1] < 0) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       // 调用sabaki的移除标记功能
@@ -689,7 +696,7 @@ class GobanMCPEndpoints {
         coord2[0] < 0 ||
         coord2[1] < 0
       ) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       // 调用sabaki的绘制线条功能
@@ -717,7 +724,7 @@ class GobanMCPEndpoints {
         coord2[0] < 0 ||
         coord2[1] < 0
       ) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       // 调用sabaki的移除线条功能
@@ -923,7 +930,7 @@ class GobanMCPEndpoints {
       const coord = this.stringToVertex(vertex)
 
       if (!coord || coord[0] < 0 || coord[1] < 0) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       const sign = color === 'B' ? 1 : -1
@@ -945,7 +952,7 @@ class GobanMCPEndpoints {
       const coord = this.stringToVertex(vertex)
 
       if (!coord || coord[0] < 0 || coord[1] < 0) {
-        return {error: '无效的坐标位置'}
+        return {error: 'Некорректная позиция координат'}
       }
 
       // 调用sabaki的移除棋子功能
@@ -976,14 +983,14 @@ class GobanMCPEndpoints {
     try {
       const gameContext = this.getGameContext()
       if (!gameContext) {
-        return {error: '无法获取游戏上下文'}
+        return {error: 'Не удалось получить игровой контекст'}
       }
 
       const {gameTrees, gameIndex, treePosition} = gameContext
       const gameTree = gameTrees[gameIndex]
 
       if (!gameTree) {
-        return {error: '无法获取当前游戏树'}
+        return {error: 'Не удалось получить текущее дерево партии'}
       }
 
       const board = gametree.getBoard(gameTree, treePosition.id)
@@ -1020,7 +1027,7 @@ class GobanMCPEndpoints {
   generateMCPMessage(endpointId, params) {
     const endpoint = this.endpoints.find(e => e.id === endpointId)
     if (!endpoint) {
-      return {error: `未知的MCP端点: ${endpointId}`}
+      return {error: `Неизвестная конечная точка MCP: ${endpointId}`}
     }
 
     return {
@@ -1039,14 +1046,14 @@ class GobanMCPEndpoints {
    */
   async handleMCPRequest(mcpRequest) {
     if (!mcpRequest.mcp || !mcpRequest.mcp.tool) {
-      return {error: '无效的MCP请求格式'}
+      return {error: 'Некорректный формат MCP-запроса'}
     }
 
     const toolName = mcpRequest.mcp.tool.name
     const endpoint = this.endpoints.find(e => e.name === toolName)
 
     if (!endpoint) {
-      return {error: `未找到工具: ${toolName}`}
+      return {error: `Инструмент не найден: ${toolName}`}
     }
 
     try {

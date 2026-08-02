@@ -317,7 +317,7 @@ class Golaxy extends GoCommunicate {
 
   async syncSgf(gameId, sgfContent) {
     // 同步SGF到Sabaki应用中
-    console.log(`同步游戏 ${gameId} 的SGF内容`)
+    console.log(`Синхронизация содержимого SGF для партии ${gameId}`)
 
     // 确保sabaki已加载 - 使用正确的导入方式获取实例
     if (!sabaki) {
@@ -325,15 +325,15 @@ class Golaxy extends GoCommunicate {
         // 动态导入sabaki模块 - 使用ES模块导入语法
         const sabakiModule = await import('../modules/sabaki.js')
         sabaki = sabakiModule.default
-        console.log('Sabaki模块已成功导入并获取实例')
+        console.log('Модуль Sabaki успешно импортирован, экземпляр получен')
       } catch (importError) {
-        console.error('导入Sabaki模块失败:', importError)
+        console.error('Не удалось импортировать модуль Sabaki:', importError)
         // 尝试CommonJS导入作为备选方案
         try {
           sabaki = require('../modules/sabaki')
-          console.log('使用CommonJS导入Sabaki模块成功')
+          console.log('Модуль Sabaki успешно импортирован через CommonJS')
         } catch (commonJsError) {
-          console.error('CommonJS导入也失败:', commonJsError)
+          console.error('Импорт через CommonJS также не удался:', commonJsError)
           return
         }
       }
@@ -341,7 +341,7 @@ class Golaxy extends GoCommunicate {
 
     // 确保sabaki是正确的实例
     if (!sabaki || typeof sabaki !== 'object') {
-      console.error('sabaki不是有效的对象')
+      console.error('sabaki не является корректным объектом')
       return
     }
 
@@ -354,13 +354,13 @@ class Golaxy extends GoCommunicate {
         if (typeof sabaki.goToEnd === 'function') {
           sabaki.goToEnd()
         } else {
-          console.warn('sabaki.goToEnd方法不存在')
+          console.warn('Метод sabaki.goToEnd не существует')
         }
       } else {
-        console.error('sabaki.loadContent方法不存在')
+        console.error('Метод sabaki.loadContent не существует')
         // 打印sabaki对象的方法，帮助调试
         console.log(
-          'sabaki对象可用方法:',
+          'Доступные методы объекта sabaki:',
           Object.keys(sabaki).filter(key => typeof sabaki[key] === 'function')
         )
 
@@ -370,18 +370,18 @@ class Golaxy extends GoCommunicate {
             ? window.require('../modules/sabaki')
             : null
           if (directSabaki && typeof directSabaki.loadContent === 'function') {
-            console.log('尝试使用直接导入的sabaki实例')
+            console.log('Попытка использовать напрямую импортированный экземпляр sabaki')
             await directSabaki.loadContent(sgfContent, '.sgf')
             if (typeof directSabaki.goToEnd === 'function') {
               directSabaki.goToEnd()
             }
           }
         } catch (directError) {
-          console.error('直接导入尝试失败:', directError)
+          console.error('Попытка прямого импорта также не удалась:', directError)
         }
       }
     } catch (error) {
-      console.error('同步SGF失败:', error)
+      console.error('Не удалось синхронизировать SGF:', error)
     }
   }
 
@@ -397,7 +397,7 @@ class Golaxy extends GoCommunicate {
     if (data && data.length > 0) {
       const newMove = data[data.length - 1]
       if (newMove.moveNum > lastMoveNum) {
-        console.log(`发现新的一手: ${newMove.moveNum}`)
+        console.log(`Обнаружен новый ход: ${newMove.moveNum}`)
         this.lastMoveNum = newMove.moveNum
         this.lastMove = JSON.parse(newMove.data).coord
 
@@ -417,12 +417,12 @@ class Golaxy extends GoCommunicate {
                 sabaki.goToEnd()
               }
             } else {
-              console.error('无法加载SGF内容，sabaki对象或方法不可用')
+              console.error('Не удалось загрузить содержимое SGF: объект sabaki или его метод недоступны')
             }
 
             // 保存新着信息，将通过GolaxyLivePanel展示
             lastMove = this.lastMove
-            console.log(`新着: ${lastMove}`)
+            console.log(`Новый ход: ${lastMove}`)
           }
         }
       }

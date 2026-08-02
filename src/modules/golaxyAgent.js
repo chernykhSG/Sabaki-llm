@@ -5,19 +5,19 @@ export class GolaxyLiveReportsAgent extends Agent {
   constructor() {
     super(
       'golaxy-live-reports-agent',
-      'Golaxy直播报告智能体',
+      'Агент отчётов о трансляциях Golaxy',
       TOOL_TYPES.SYSTEM_INTEGRATION,
-      '专业获取和分析Golaxy平台实时和历史围棋比赛直播数据的智能体'
+      'Агент, специализирующийся на получении и анализе данных о текущих и исторических трансляциях партий Го с платформы Golaxy'
     );
-    this.addCapability('获取直播数据');
-    this.addCapability('获取历史数据');
-    this.addCapability('分析比赛信息');
+    this.addCapability('Получение данных трансляций');
+    this.addCapability('Получение исторических данных');
+    this.addCapability('Анализ информации о партиях');
   }
 
   // 实现execute方法
   async execute(params = {}) {
     this.setState(AGENT_STATES.ACTING);
-    this.addHistory('action', `正在获取Golaxy${params.type === 'history' ? '历史' : '直播'}报告数据，限制为${params.limit || 10}场比赛`);
+    this.addHistory('action', `Получение ${params.type === 'history' ? 'исторических' : 'прямых'} отчётов Golaxy, лимит ${params.limit || 10} партий`);
     
     try {
       const {type = 'live', limit = 10} = params;
@@ -29,19 +29,19 @@ export class GolaxyLiveReportsAgent extends Agent {
       const result = {
         success: true,
         data: reports,
-        content: `成功获取${type === 'live' ? '直播' : '历史'}比赛数据，共${reports.length}场比赛`,
+        content: `Успешно получены данные ${type === 'live' ? 'прямых трансляций' : 'исторических'} партий, всего ${reports.length} партий`,
         agentId: this.id,
         agentName: this.name
       };
-      
+
       this.setState(AGENT_STATES.IDLE);
       this.addHistory('result', result.content);
       return result;
     } catch (error) {
-      console.error('获取Golaxy直播报告失败:', error);
+      console.error('Не удалось получить отчёты о трансляциях Golaxy:', error);
       const errorResult = {
         success: false,
-        error: error.message || '获取Golaxy直播报告失败',
+        error: error.message || 'Не удалось получить отчёты о трансляциях Golaxy',
         agentId: this.id,
         agentName: this.name
       };
@@ -56,21 +56,21 @@ export class GolaxyLiveReportsAgent extends Agent {
   getToolDescription() {
     return {
       id: 'get-golaxy-live-reports',
-      name: '获取Golaxy直播报告',
-      description: '获取Golaxy平台的实时和历史围棋比赛直播数据',
+      name: 'Получить отчёты о трансляциях Golaxy',
+      description: 'Получает данные о текущих и исторических трансляциях партий Го с платформы Golaxy',
       type: this.type,
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
-            description: '要获取的报告类型，可以是"live"（直播）或"history"（历史）',
+            description: 'Тип запрашиваемых отчётов: "live" (прямая трансляция) или "history" (история)',
             enum: ['live', 'history'],
             default: 'live'
           },
           limit: {
             type: 'number',
-            description: '返回的比赛数量限制',
+            description: 'Ограничение на количество возвращаемых партий',
             default: 10
           }
         }

@@ -1,59 +1,78 @@
-// 提示词管理模块
+// Модуль управления промптами
+import * as remote from '@electron/remote'
+
+const setting = remote.require('./setting')
+
 class PromptManager {
   constructor() {
     this.prompts = null
     this.loaded = false
   }
 
-  // 加载提示词配置
+  // Определяет язык промптов по настройке app.lang: 'en' для английского,
+  // иначе (по умолчанию) — русский.
+  resolveLanguage() {
+    let lang = setting.get('app.lang') || 'ru'
+    return lang.toLowerCase().startsWith('en') ? 'en' : 'ru'
+  }
+
+  // Загружает конфигурацию промптов
   async loadPrompts() {
     try {
-      // 在Electron环境中使用动态导入
+      // В окружении Electron используем динамический импорт
       const promptsModule = await import('../../llm_prompts/prompts.json')
       this.prompts = promptsModule.default || promptsModule
       this.loaded = true
       return this.prompts
     } catch (error) {
-      console.error('加载提示词配置失败:', error)
-      // 返回默认配置作为后备
+      console.error('Не удалось загрузить конфигурацию промптов:', error)
+      // Возвращаем запасную конфигурацию
       return this.getDefaultPrompts()
     }
   }
 
-  // 获取默认提示词配置（作为后备）
+  // Возвращает языковую ветку уже загруженных промптов (с запасным
+  // вариантом на русский, если для выбранного языка данных нет)
+  getLangPrompts() {
+    return this.prompts?.[this.resolveLanguage()] || this.prompts?.ru || {}
+  }
+
+  // Запасная конфигурация промптов (на случай ошибки загрузки JSON)
   getDefaultPrompts() {
     return {
-      pre_prompts: {
-        go_assistant: {
-          default:
-            '你是一个围棋助手，能够分析棋局、提供建议并回答关于围棋策略的问题。\n\n你有两种响应格式可以使用(优先调用工具):\n1. 当你需要调用工具分析时，必须使用mcp格式，不要在response中提及工具名称:\n{"mcp":{"tool":{"name":"工具名称","description":"工具描述","parameters":{参数对象}}}}\n\n2. 当你可以直接回答用户问题时，使用content格式:\n{"content":"你的回答内容"}\n\n'
+      ru: {
+        pre_prompts: {
+          go_assistant: {
+            default:
+              'Ты — ассистент по игре го, способный анализировать партии, давать советы и отвечать на вопросы о стратегии го.\n\nУ тебя есть два формата ответа (сначала пробуй вызвать инструмент):\n1. Когда нужно вызвать инструмент для анализа, используй формат mcp и не упоминай название инструмента в ответе:\n{"mcp":{"tool":{"name":"название_инструмента","description":"описание_инструмента","parameters":{объект_параметров}}}}\n\n2. Когда можешь ответить пользователю напрямую, используй формат content:\n{"content":"текст твоего ответа"}\n\n'
+          }
         }
       }
     }
   }
 
-  // 获取预提示词
+  // Возвращает преамбулу (pre-prompt)
   async getPrePrompt(assistantType = 'go_assistant', variant = 'default') {
     if (!this.loaded) {
       await this.loadPrompts()
     }
-    return this.prompts?.pre_prompts?.[assistantType]?.[variant] || ''
+    return this.getLangPrompts()?.pre_prompts?.[assistantType]?.[variant] || ''
   }
 
-  // 获取系统提示词
+  // Возвращает системный промпт
   async getSystemPrompt(promptType) {
     if (!this.loaded) {
       await this.loadPrompts()
     }
-    return this.prompts?.system_prompts?.[promptType] || {}
+    return this.getLangPrompts()?.system_prompts?.[promptType] || {}
   }
 
-  // 获取任务提示词
+  // Возвращает промпт задачи
   async getTaskPrompt(taskType) {
     if (!this.loaded) {
       await this.loadPrompts()
     }
-    return this.prompts?.task_prompts?.[taskType] || ''
+    return this.getLangPrompts()?.task_prompts?.[taskType] || ''
   }
 
   // 构建决策提示词
