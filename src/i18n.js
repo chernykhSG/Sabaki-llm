@@ -89,7 +89,7 @@ exports.loadFile = function(filename) {
         let exports = {}
         let module = {exports}
 
-        ;(() => (${readFileSync(filename, 'utf8')}))()
+        ${readFileSync(filename, 'utf8')}
 
         return module.exports
       `)()
