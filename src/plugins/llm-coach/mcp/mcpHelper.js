@@ -1,8 +1,8 @@
 import * as remote from '@electron/remote'
 const setting = remote.require('./setting')
-import engineSyncer from '../../../modules/enginesyncer.js'
 import sabaki from '../../../modules/sabaki.js'
 import commands from './commands.js'
+import {resolveEngineSyncer} from './pluginEngineAdapter.js'
 class MCPHelper {
   constructor() {
     this.mcpEndpoints = []
@@ -760,31 +760,13 @@ class MCPHelper {
   }
 
   async handleKataGoAnalysis(params, gameContext) {
-    let syncer = null
-    if (
-      sabaki &&
-      sabaki.state &&
-      sabaki.state.attachedEngineSyncers &&
-      sabaki.state.attachedEngineSyncers.length > 0
-    ) {
-      syncer = sabaki.state.attachedEngineSyncers[0]
-    } else {
-      let engine = setting.get('gtp.engine')
+    let resolved = resolveEngineSyncer()
 
-      if (!engine || !engine.path) {
-        let enginesList = setting.get('engines.list') || []
-        if (enginesList.length > 0) {
-          engine = enginesList[0]
-        }
-      }
-
-      if (!engine || !engine.path) {
-        return {error: 'Движок KataGo не настроен'}
-      }
-
-      syncer = new engineSyncer(engine)
-      syncer.start()
+    if (!resolved) {
+      return {error: 'Движок KataGo не настроен'}
     }
+
+    let {syncer} = resolved
 
     await syncer.sync(
       gameContext.gameTrees[gameContext.gameIndex],
@@ -883,38 +865,17 @@ class MCPHelper {
   }
 
   async handleGetEngineCommands(params, gameContext) {
-    let syncer = null
-    let needStop = false
+    let resolved = resolveEngineSyncer()
 
-    if (
-      sabaki &&
-      sabaki.state &&
-      sabaki.state.attachedEngineSyncers &&
-      sabaki.state.attachedEngineSyncers.length > 0
-    ) {
-      syncer = sabaki.state.attachedEngineSyncers[0]
-    } else {
-      let engine = setting.get('gtp.engine')
-
-      if (!engine || !engine.path) {
-        let enginesList = setting.get('engines.list') || []
-        if (enginesList.length > 0) {
-          engine = enginesList[0]
-        }
-      }
-
-      if (!engine || !engine.path) {
-        return {error: 'Движок не настроен'}
-      }
-
-      syncer = new engineSyncer(engine)
-      syncer.start()
-      needStop = true
+    if (!resolved) {
+      return {error: 'Движок не настроен'}
     }
+
+    let {syncer, ownsSyncer} = resolved
 
     let response = await syncer.queueCommand({name: 'list_commands'})
 
-    if (needStop) {
+    if (ownsSyncer) {
       await syncer.stop()
     }
 
@@ -929,34 +890,13 @@ class MCPHelper {
   }
 
   async handleKataGoScore(params, gameContext) {
-    let syncer = null
-    let needStop = false
+    let resolved = resolveEngineSyncer()
 
-    if (
-      sabaki &&
-      sabaki.state &&
-      sabaki.state.attachedEngineSyncers &&
-      sabaki.state.attachedEngineSyncers.length > 0
-    ) {
-      syncer = sabaki.state.attachedEngineSyncers[0]
-    } else {
-      let engine = setting.get('gtp.engine')
-
-      if (!engine || !engine.path) {
-        let enginesList = setting.get('engines.list') || []
-        if (enginesList.length > 0) {
-          engine = enginesList[0]
-        }
-      }
-
-      if (!engine || !engine.path) {
-        return {error: 'Движок KataGo не настроен'}
-      }
-
-      syncer = new engineSyncer(engine)
-      syncer.start()
-      needStop = true
+    if (!resolved) {
+      return {error: 'Движок KataGo не настроен'}
     }
+
+    let {syncer, ownsSyncer} = resolved
 
     await syncer.sync(
       gameContext.gameTrees[gameContext.gameIndex],
@@ -965,7 +905,7 @@ class MCPHelper {
 
     let response = await syncer.queueCommand({name: 'final_score'})
 
-    if (needStop) {
+    if (ownsSyncer) {
       await syncer.stop()
     }
 
@@ -1060,34 +1000,13 @@ class MCPHelper {
       }
     }
 
-    let syncer = null
-    let needStop = false
+    let resolved = resolveEngineSyncer()
 
-    if (
-      sabaki &&
-      sabaki.state &&
-      sabaki.state.attachedEngineSyncers &&
-      sabaki.state.attachedEngineSyncers.length > 0
-    ) {
-      syncer = sabaki.state.attachedEngineSyncers[0]
-    } else {
-      let engine = setting.get('gtp.engine')
-
-      if (!engine || !engine.path) {
-        let enginesList = setting.get('engines.list') || []
-        if (enginesList.length > 0) {
-          engine = enginesList[0]
-        }
-      }
-
-      if (!engine || !engine.path) {
-        return {error: 'Движок не настроен'}
-      }
-
-      syncer = new engineSyncer(engine)
-      syncer.start()
-      needStop = true
+    if (!resolved) {
+      return {error: 'Движок не настроен'}
     }
+
+    let {syncer, ownsSyncer: needStop} = resolved
 
     const needSync = [
       'genmove',

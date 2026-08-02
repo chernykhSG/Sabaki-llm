@@ -1,7 +1,4 @@
 import EventEmitter from 'events'
-import * as remote from '@electron/remote'
-import engineSyncer from '../../../modules/enginesyncer.js'
-import sabaki from '../../../modules/sabaki.js'
 import {getBoard} from '../../../modules/gametree.js'
 import i18n from '../../../i18n.js'
 import {
@@ -11,11 +8,10 @@ import {
   computeWinrateLoss,
   isSignificantMove
 } from './gameReviewMath.js'
+import {resolveEngineSyncer, analyzePosition} from '../mcp/pluginEngineAdapter.js'
 
 const t = i18n.context('GameReviewer')
-const setting = remote.require('./setting')
 
-const ANALYSIS_TIMEOUT = 30000
 const DEFAULT_VISITS = 100
 const DEFAULT_THRESHOLD = 8
 
@@ -27,72 +23,9 @@ export const REVIEW_STATUS = {
 
 export {moverSign, sideToMoveAt, toBlackWinrate, computeWinrateLoss, isSignificantMove}
 
-function resolveEngineSyncer() {
-  if (
-    sabaki &&
-    sabaki.state &&
-    sabaki.state.attachedEngineSyncers &&
-    sabaki.state.attachedEngineSyncers.length > 0
-  ) {
-    return {syncer: sabaki.state.attachedEngineSyncers[0], ownsSyncer: false}
-  }
-
-  let engine = setting.get('gtp.engine')
-
-  if (!engine || !engine.path) {
-    let enginesList = setting.get('engines.list') || []
-    if (enginesList.length > 0) engine = enginesList[0]
-  }
-
-  if (!engine || !engine.path) return null
-
-  let syncer = new engineSyncer(engine)
-  syncer.start()
-
-  return {syncer, ownsSyncer: true}
-}
-
 function vertexToCoord(board, vertex) {
   if (vertex == null || vertex[0] < 0 || vertex[1] < 0) return 'pass'
   return board.stringifyVertex(vertex)
-}
-
-function analyzePosition(syncer, tree, nodeId, visits) {
-  return syncer.sync(tree, nodeId).then(
-    () =>
-      new Promise(resolve => {
-        let settled = false
-        let timeoutId
-
-        let finish = result => {
-          if (settled) return
-          settled = true
-
-          syncer.removeListener('analysis-update', onUpdate)
-          clearTimeout(timeoutId)
-
-          syncer.controller
-            .sendCommand({name: 'protocol_version'})
-            .catch(() => {})
-            .then(() => resolve(result))
-        }
-
-        let onUpdate = () => {
-          if (!syncer.analysis) return
-
-          let {variations} = syncer.analysis
-          finish({
-            winrate: syncer.analysis.winrate,
-            bestVertex: variations.length > 0 ? variations[0].vertex : null
-          })
-        }
-
-        timeoutId = setTimeout(() => finish(null), ANALYSIS_TIMEOUT)
-
-        syncer.on('analysis-update', onUpdate)
-        syncer.queueCommand({name: 'lz-analyze', args: [String(visits)]})
-      })
-  )
 }
 
 // Проходит по списку узлов основной линии (nodes[0] — корень) и находит ходы,

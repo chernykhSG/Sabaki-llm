@@ -7,11 +7,11 @@ Sabaki можно было мерджить с апстримом SabakiHQ/Sabak
 конфликтов — без самого merge в этом заходе.
 
 ## Next Step
-Реализовать `sabaki.registerPlugin()` в `src/modules/sabaki.js` и
-`src/plugins/llm-coach/index.js` (Phase 2).
+Phase 4: добавить `"!src/plugins${/*}"` в `package.json.build.files`,
+подключить `upstream` remote, написать `docs/guides/upstream-merge.md`.
 
 ## Current Phase
-Phase 2
+Phase 4
 
 ## Phases
 
@@ -55,11 +55,16 @@ Phase 2
   тайминг существующего поведения.
 
 ### Phase 3: `pluginEngineAdapter.js`
-- [ ] Вынести `resolveEngineSyncer()` из `gameReviewer.js` в
-      `src/plugins/llm-coach/mcp/pluginEngineAdapter.js`
-- [ ] Переключить `gameReviewer.js` на адаптер
-- [ ] Переключить 4 места дублирования в `mcpHelper.js` на адаптер
-- **Status:** pending
+- [x] Вынести `resolveEngineSyncer()` + `analyzePosition()` из `gameReviewer.js`
+      в `src/plugins/llm-coach/mcp/pluginEngineAdapter.js`
+- [x] Переключить `gameReviewer.js` на адаптер (удалены локальные копии функций)
+- [x] Переключить 4 места дублирования в `mcpHelper.js` на адаптер; попутно
+      унифицирована остановка ad-hoc движка в `handleKataGoAnalysis` (раньше
+      единственный из четырёх методов не останавливал созданный им же
+      экземпляр EngineSyncer — теперь как и остальные 3, через `ownsSyncer`)
+- [x] Удалён неиспользуемый импорт `engineSyncer` из `mcpHelper.js`
+- [x] `npm run bundle`/`node run_tests.js` — чисто, 8/8
+- **Status:** complete
 
 ### Phase 4: Обвязка и git-подготовка
 - [ ] `package.json.build.files`: добавить `"!src/plugins${/*}"`
