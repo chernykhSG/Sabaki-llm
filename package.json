@@ -66,6 +66,7 @@
       "!ci${/*}",
       "!src/components/{helpers,sidebars,bars}${/*}",
       "!src/modules${/*}",
+      "!src/plugins${/*}",
       "!engines",
       "!node_modules",
       "node_modules/@electron/remote",

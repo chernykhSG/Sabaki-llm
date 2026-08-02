@@ -7,11 +7,14 @@ Sabaki можно было мерджить с апстримом SabakiHQ/Sabak
 конфликтов — без самого merge в этом заходе.
 
 ## Next Step
-Phase 4: добавить `"!src/plugins${/*}"` в `package.json.build.files`,
-подключить `upstream` remote, написать `docs/guides/upstream-merge.md`.
+Инкремент завершён. Следующий шаг (отдельный проект) — сам
+`git merge upstream/v0.60.2` + миграция `@electron/remote` → IPC, по
+runbook в `docs/guides/upstream-merge.md`. Плюс пользователь сам делает
+ручную проверку в приложении (`npm run watch-dev`) вместе с проверкой
+разбора партии и русского интерфейса — как договаривались ранее в сессии.
 
 ## Current Phase
-Phase 4
+Phase 5 (завершение)
 
 ## Phases
 
@@ -67,19 +70,24 @@ Phase 4
 - **Status:** complete
 
 ### Phase 4: Обвязка и git-подготовка
-- [ ] `package.json.build.files`: добавить `"!src/plugins${/*}"`
-- [ ] Добавить `upstream` remote (`git remote add upstream https://github.com/SabakiHQ/Sabaki.git`)
-- [ ] Написать `docs/guides/upstream-merge.md` (runbook будущего merge)
-- **Status:** pending
+- [x] `package.json.build.files`: добавлено `"!src/plugins${/*}"`
+- [x] Добавлен `upstream` remote (SabakiHQ/Sabaki), `git fetch upstream --tags`
+      выполнен — все теги подтянуты, включая v0.60.2
+- [x] Написан `docs/guides/upstream-merge.md` (runbook будущего merge:
+      горячие точки, чек-лист миграции @electron/remote → IPC для 8
+      plugin-файлов, порядок проверки)
+- **Status:** complete
 
 ### Phase 5: Верификация и коммиты
-- [ ] `npm run bundle` — без новых ошибок/warning
-- [ ] `node run_tests.js` — все тесты проходят
-- [ ] `npm start` — ручная проверка: AI Chat через меню, Game Review работает
-- [ ] Атомарные коммиты по каждому логическому шагу (перенос / registerPlugin /
-      adapter / build.files+remote)
-- [ ] `git push`
-- **Status:** pending
+- [x] `npm run bundle` — без новых ошибок/warning (проверялось после каждой фазы)
+- [x] `node run_tests.js` — 8/8 (проверялось после каждой фазы)
+- [ ] `npm start`/`npm run watch-dev` — ручная проверка в реальном приложении
+      (AI Chat, Game Review) — делает пользователь сам, как договорились
+- [x] Атомарные коммиты по каждому логическому шагу: `f6b32064` (перенос +
+      registerPlugin), `4fae1798` (pluginEngineAdapter), плюс этот коммит
+      (build.files + upstream remote + runbook)
+- [x] `git push` после каждого коммита
+- **Status:** complete (кроме ручной проверки в приложении — за пользователем)
 
 ## Key Questions
 1. Нужно ли переносить `llm_prompts/` и docs-файлы в этот же заход? — Нет,

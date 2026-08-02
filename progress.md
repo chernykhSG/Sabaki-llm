@@ -60,11 +60,51 @@
   - `progress.md` (создан, этот файл)
 
 ### Phase 1 (плагинная архитектура): Физический перенос файлов
-- **Status:** pending
+- **Status:** complete
 - Actions taken:
-  -
-- Files created/modified:
-  -
+  - `git mv` 21 LLM-файл + `commands.js` в `src/plugins/llm-coach/{agents,llm,
+    mcp,rag,review,golaxy,ui}/` (не 25, как было в предварительной оценке агента)
+  - Построена и применена точная карта старый→новый путь для каждого файла;
+    поправлены относительные импорты внутри всех перенесённых файлов
+  - Найдены и поправлены ссылки на старые пути СНАРУЖИ плагина: `sabaki.js`,
+    `DrawerManager.js`, `index.html`, `test/test_game_review_math.js`
+  - Обнаружен пропуск в первом grep-поиске (case-sensitive, не поймал
+    `GolaxyLivePanel` при поиске `golaxy`) — доисследовано полным сканом
+    `src/` на упоминания всех перенесённых имён без учёта регистра
+  - Найдены и поправлены ещё 7 тестовых скриптов вне `test/` (test_tool_
+    compatibility.js, test_five_step_process.js) и внутри (`test_ai_module.js`,
+    `test_tools_format.js`, `test_prompt_build.js`, `test_response_field_
+    unified.js`, `test_tools_duplicate_fixed.js`) с хардкодед-путями `src/modules/...`
+  - Обновлён `CLAUDE.md` (не коммитится — файл остаётся untracked, как и был
+    в начале сессии) под новые пути
+  - `npm run bundle`/`node run_tests.js` — чисто
+- Files created/modified: см. коммит `f6b32064`
+
+### Phase 2 (registerPlugin) + Phase 3 (pluginEngineAdapter)
+- **Status:** complete
+- Actions taken:
+  - `sabaki.registerPlugin()`/`getPlugin()`, `src/plugins/llm-coach/index.js`
+  - `DrawerManager.js`/`menu.js` переведены на `sabaki.pluginDrawers`/
+    `pluginMenuItems`, попутно починен баг `show: true`
+  - Осознанно НЕ стал трогать `App.js` (см. task_plan.md → "Отклонение")
+  - `pluginEngineAdapter.js` — вынесена `resolveEngineSyncer`/`analyzePosition`,
+    переключены `gameReviewer.js` и 4 места в `mcpHelper.js`
+- Files created/modified: см. коммиты `f6b32064`, `4fae1798`
+
+### Phase 4 (build.files + upstream remote + runbook)
+- **Status:** complete
+- Actions taken:
+  - `package.json.build.files`: добавлено `"!src/plugins${/*}"`
+  - `git remote add upstream https://github.com/SabakiHQ/Sabaki.git` +
+    `git fetch upstream --tags` (подтверждено: v0.60.2 доступен)
+  - Написан `docs/guides/upstream-merge.md`
+- Files created/modified: `package.json`, `docs/guides/upstream-merge.md`
+
+### Итог инкремента
+Вся плагинная архитектура (Phase 1-4 из task_plan.md) реализована,
+закоммичена (`f6b32064`, `4fae1798`, + этот коммит) и запушена. Сам
+`git merge upstream/v0.60.2` осознанно НЕ делался — отдельный будущий шаг
+по runbook. Ручную проверку в реальном приложении делает пользователь.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
