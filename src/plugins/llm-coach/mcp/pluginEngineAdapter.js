@@ -2,11 +2,13 @@
 // Изолирует хрупкую зависимость от деталей реализации ядра (syncer.controller,
 // queueCommand, событие analysis-update) в одном месте — раньше эта логика
 // была продублирована вручную в 4 местах mcpHelper.js и ещё раз в gameReviewer.js.
-import * as remote from '@electron/remote'
 import engineSyncer from '../../../modules/enginesyncer.js'
 import sabaki from '../../../modules/sabaki.js'
 
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 const ANALYSIS_TIMEOUT = 30000
 
 // Возвращает {syncer, ownsSyncer}:

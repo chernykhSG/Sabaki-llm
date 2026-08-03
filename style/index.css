@@ -1595,6 +1595,14 @@ button:active {
 
 /* Override Shudan styles */
 
+/* Don't inherit the app font stack (leads with 'Segoe UI', which is missing or
+   broken on some Linux setups and left these tiny labels blank); pin to widely
+   available fonts. */
+.shudan-vertex .shudan-heatlabel {
+  font-family: 'Noto Sans', 'DejaVu Sans', 'Liberation Sans', Roboto, Arial,
+    sans-serif;
+}
+
 .shudan-vertex .shudan-heatlabel::first-line {
   font-weight: bold;
 }
@@ -1607,4 +1615,11 @@ button:active {
 }
 .api-key-manager-title {
   text-transform: uppercase !important;
+}
+
+/* Some themes set `background` on the last-move dot (a leftover from when it was
+   a <div>); on the current SVG marker that paints a square over the vertex.
+   Neutralize it -- theme stylesheets load after this one, so !important wins. */
+.shudan-vertex.shudan-marker_point .shudan-marker {
+  background: transparent !important;
 }

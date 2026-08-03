@@ -10,11 +10,13 @@ upstream/v0.60.2` + миграция `@electron/remote` → IPC в 8 plugin-фа
 runbook в `docs/guides/upstream-merge.md`. Пользователь подтвердил старт.
 
 ## Next Step
-Создать ветку `merge/upstream-v0.60.2`, выполнить `git merge upstream/v0.60.2
---no-ff`, разобрать конфликты по горячим точкам из runbook.
+Phase 7 завершена (9 файлов мигрированы, `enableRemoteModule` и
+`@electron/remote` зависимость убраны, bundle+tests чисто). Осталось:
+закоммитить merge (единым коммитом, включающим Phase 6+7), сделать ручную
+проверку в приложении, слить ветку в master, push.
 
 ## Current Phase
-Phase 6
+Phase 8 (коммит merge + ручная проверка + финальный push)
 
 ## Phases
 
@@ -90,31 +92,44 @@ Phase 6
 - **Status:** complete (кроме ручной проверки в приложении — за пользователем)
 
 ### Phase 6: git merge upstream/v0.60.2
-- [ ] Ветка `merge/upstream-v0.60.2` от текущего `master` (`29724d47`)
-- [ ] `git merge upstream/v0.60.2 --no-ff`
-- [ ] Разобрать конфликты по горячим точкам (см. `docs/guides/upstream-merge.md`):
-      `package.json`/`package-lock.json`, `src/main.js`, `src/modules/sabaki.js`,
-      `src/components/App.js`, `src/menu.js`, `src/components/DrawerManager.js`,
-      `src/i18n.js`
-- **Status:** pending
+- [x] Ветка `merge/upstream-v0.60.2` от `master`
+- [x] `git merge v0.60.2 --no-ff --no-edit` (тег, не upstream/v0.60.2)
+- [x] Разобраны все 19 конфликтующих файлов (список и находки — см.
+      progress.md): .gitignore, package.json, webpack.config.js,
+      src/setting.js, src/i18n.js, src/main.js, src/modules/sabaki.js,
+      src/menu.js, src/components/App.js, src/components/DrawerManager.js,
+      src/components/Goban.js, src/components/LeftSidebar.js,
+      src/components/MainView.js, src/components/drawers/PreferencesDrawer.js,
+      style/app.css, style/index.css, .github/workflows/create-release.yml,
+      ci/extractInfo.js (git rm)
+- [x] package-lock.json — перегенерирован через `npm install`, чисто
+- [x] `npm run bundle` — успешно, 3 старых предупреждения (chromadb), новых ошибок нет
+- [x] `node run_tests.js` — 8/8 тестов пройдено
+- **Status:** complete
 
-### Phase 7: Миграция @electron/remote → IPC в 8 plugin-файлах
-- [ ] Изучить новый IPC-паттерн, который принёс апстрим (посмотреть на
-      обновлённые core-файлы после merge)
-- [ ] Мигрировать: `ai.js`, `aiManager.js`, `promptManager.js`, `mcpHelper.js`,
-      `pluginEngineAdapter.js`, `gameReviewer.js`, `GameReviewDrawer.js`,
-      `ragManager.js` (список из runbook, финально сверить по фактическому
-      использованию `@electron/remote` после merge)
-- **Status:** pending
+### Phase 7: Миграция @electron/remote → IPC в plugin-файлах
+- [x] Найдены 9 файлов (не 8 — добавился embeddingGenerator.js):
+      `llm/ai.js`, `llm/aiManager.js`, `llm/promptManager.js`,
+      `mcp/mcpHelper.js`, `mcp/pluginEngineAdapter.js`, `ui/GameReviewDrawer.js`,
+      `mcp/gobanMcpEndpoints.js`, `rag/ragManager.js`, `rag/embeddingGenerator.js`
+- [x] Все мигрированы на `window.sabaki.setting.get/set` прокси (или
+      `window.sabaki.setting.userDataDirectory`/`window.sabaki.dialog.
+      showMessageBox` где нужно) — детали см. progress.md
+- [x] Убран `enableRemoteModule: true` + `require('@electron/remote/main').
+      enable(...)` из `src/main.js`
+- [x] Убрана зависимость `@electron/remote` из `package.json`
+- [x] `npm install` + `npm run bundle` + `node run_tests.js` — чисто
+- **Status:** complete
 
-### Phase 8: Верификация после merge
-- [ ] `npm run bundle`, `node run_tests.js`
+### Phase 8: Коммит merge + верификация + push
+- [x] `npm run bundle`, `node run_tests.js` — чисто (после Phase 6 и после Phase 7)
+- [ ] Коммит merge (`git commit`, НЕ squash) — включает Phase 6 + Phase 7
 - [ ] Ручная проверка в приложении (`npm start`/`npm run watch-dev`):
       SGF/GIB/NGF/UGF импорт-экспорт, синхронизация движков, GTP-консоль,
-      доска, AI Chat, Game Review, русский интерфейс — одним заходом, как
-      договорились
+      доска, AI Chat, Game Review, русский интерфейс, Preferences, закрытие
+      окна — одним заходом, как договорились
 - [ ] Слияние `merge/upstream-v0.60.2` в `master`, push
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 1. Нужно ли переносить `llm_prompts/` и docs-файлы в этот же заход? — Нет,

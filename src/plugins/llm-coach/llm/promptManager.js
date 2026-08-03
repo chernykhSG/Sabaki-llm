@@ -1,7 +1,8 @@
 // Модуль управления промптами
-import * as remote from '@electron/remote'
-
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 
 class PromptManager {
   constructor() {

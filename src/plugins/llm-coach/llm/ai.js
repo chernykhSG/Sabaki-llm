@@ -1,10 +1,13 @@
-import * as remote from '@electron/remote'
-const setting = remote.require('./setting')
 import mcpHelper from '../mcp/mcpHelper.js'
 import {streamDefinition, hasApiKey} from 'llm-service-provider'
 import sabaki from '../../../modules/sabaki.js'
 import agentOrchestrator from '../agents/agentOrchestrator.js'
 import promptManager from './promptManager.js'
+
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 
 class AIHelper {
   constructor() {
@@ -267,7 +270,7 @@ class AIHelper {
   async promptUserAction(toolDescription) {
     return new Promise(resolve => {
       // Показываем диалог Electron с просьбой к пользователю
-      remote.dialog
+      window.sabaki.dialog
         .showMessageBox({
           type: 'question',
           title: 'Человеко-машинное взаимодействие',

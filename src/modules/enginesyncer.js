@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import EventEmitter from 'events'
 import {existsSync} from 'fs'
 import {dirname, resolve} from 'path'
@@ -12,9 +11,12 @@ import {parseCompressedVertices} from '@sabaki/sgf'
 import i18n from '../i18n.js'
 import {getBoard, getRootProperty} from './gametree.js'
 import {noop, equals} from './helper.js'
+import {parseAnalysis} from './analysis.js'
 
 const t = i18n.context('EngineSyncer')
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+}
 
 const alpha = 'ABCDEFGHJKLMNOPQRSTUVWXYZ'
 const quitTimeout = setting.get('gtp.engine_quit_timeout')
@@ -31,50 +33,6 @@ function parseVertex(coord, size) {
   let y = size - +coord.slice(1)
 
   return [x, y]
-}
-
-function parseAnalysis(line, board) {
-  return line
-    .split(/\s*info\s+/)
-    .slice(1)
-    .map(x => x.trim())
-    .map(x => {
-      let matchPV = x.match(/(pass|[A-Za-z]\d+)(\s+(pass|[A-Za-z]\d+))*$/)
-      if (matchPV == null) return null
-
-      let passIndex = matchPV[0].indexOf('pass')
-      if (passIndex < 0) passIndex = Infinity
-
-      return [
-        x
-          .slice(0, matchPV.index)
-          .trim()
-          .split(/\s+/)
-          .slice(0, -1),
-        matchPV[0]
-          .slice(0, passIndex)
-          .split(/\s+/)
-          .filter(x => x.length >= 2)
-      ]
-    })
-    .filter(x => x != null)
-    .map(([tokens, pv]) => {
-      let keys = tokens.filter((_, i) => i % 2 === 0)
-      let values = tokens.filter((_, i) => i % 2 === 1)
-
-      keys.push('pv')
-      values.push(pv)
-
-      return keys.reduce((acc, x, i) => ((acc[x] = values[i]), acc), {})
-    })
-    .filter(({move}) => move.match(/^[A-Za-z]\d+$/))
-    .map(({move, visits, winrate, scoreLead, pv}) => ({
-      vertex: board.parseVertex(move),
-      visits: +visits,
-      winrate: winrate.includes('.') ? +winrate * 100 : +winrate / 100,
-      scoreLead: scoreLead != null ? +scoreLead : null,
-      moves: pv.map(x => board.parseVertex(x))
-    }))
 }
 
 export default class EngineSyncer extends EventEmitter {
@@ -94,8 +52,22 @@ export default class EngineSyncer extends EventEmitter {
 
     let absolutePath = resolve(path)
     let executePath = existsSync(absolutePath) ? absolutePath : path
-    this.controller = new Controller(executePath, [...argvsplit(args)], {
-      cwd: dirname(absolutePath)
+    let executeArgs = [...argvsplit(args)]
+
+    // In a Flatpak sandbox, host engine binaries can't be run directly; route
+    // them through flatpak-spawn --host, preserving the working directory.
+    if (process.env.FLATPAK_ID != null) {
+      executeArgs = [
+        '--host',
+        `--directory=${dirname(absolutePath)}`,
+        executePath,
+        ...executeArgs,
+      ]
+      executePath = 'flatpak-spawn'
+    }
+
+    this.controller = new Controller(executePath, executeArgs, {
+      cwd: dirname(absolutePath),
     })
 
     this.stateTracker = new ControllerStateTracker(this.controller)
@@ -108,17 +80,19 @@ export default class EngineSyncer extends EventEmitter {
         this.controller.sendCommand({name: 'name'}),
         this.controller.sendCommand({name: 'version'}),
         this.controller.sendCommand({name: 'protocol_version'}),
-        this.controller.sendCommand({name: 'list_commands'}).then(response => {
-          this.commands = response.content.split('\n')
-        }),
+        this.controller
+          .sendCommand({name: 'list_commands'})
+          .then((response) => {
+            this.commands = response.content.split('\n')
+          }),
         ...(commands != null && commands.trim() !== ''
           ? commands
               .split(';')
-              .filter(x => x.trim() !== '')
-              .map(command =>
-                this.controller.sendCommand(Command.fromString(command))
+              .filter((x) => x.trim() !== '')
+              .map((command) =>
+                this.controller.sendCommand(Command.fromString(command)),
               )
-          : [])
+          : []),
       ]).catch(noop)
     })
 
@@ -139,17 +113,30 @@ export default class EngineSyncer extends EventEmitter {
           let sign = command.args[0].toUpperCase() === 'W' ? -1 : 1
           let boardsize = this.stateTracker.state.boardsize || [19, 19]
           let board = newBoard(...boardsize)
+          // kata-analyze reports a float winrate; lz-analyze/analyze report an
+          // integer in ten-thousandths.
+          let winrateFormat = command.name.startsWith('kata')
+            ? 'float'
+            : 'integer'
 
           subscribe(({line}) => {
             // Parse analysis info
 
             if (line.startsWith('info ')) {
-              let variations = parseAnalysis(line, board)
+              let variations = parseAnalysis(line, board, winrateFormat)
+              // Ignore an update with no parseable variations rather than let
+              // Math.max(...[]) === -Infinity become a non-finite SBKV.
+              if (variations.length === 0) return
 
               this.analysis = {
                 sign,
                 variations,
-                winrate: Math.max(...variations.map(({winrate}) => winrate))
+                winrate: Math.max(...variations.map(({winrate}) => winrate)),
+                scoreLead: Math.max(
+                  ...variations.map(({scoreLead}) =>
+                    scoreLead == null ? NaN : scoreLead,
+                  ),
+                ),
               }
             } else if (line.startsWith('play ')) {
               sign = -sign
@@ -162,7 +149,7 @@ export default class EngineSyncer extends EventEmitter {
           // Invalidate treePosition
 
           let prevHistory = JSON.parse(
-            JSON.stringify(this.stateTracker.state.history)
+            JSON.stringify(this.stateTracker.state.history),
           )
 
           await getResponse()
@@ -172,7 +159,7 @@ export default class EngineSyncer extends EventEmitter {
             this.analysis = null
           }
         }
-      }
+      },
     )
 
     // Sync properties
@@ -181,7 +168,7 @@ export default class EngineSyncer extends EventEmitter {
       'started',
       'stopped',
       'command-sent',
-      'response-received'
+      'response-received',
     ]) {
       this.controller.on(eventName, () => {
         this.busy = this.controller.busy
@@ -237,7 +224,12 @@ export default class EngineSyncer extends EventEmitter {
 
   async sendAbort() {
     if (this.controller.busy) {
-      await this.controller.sendCommand({name: 'protocol_version'})
+      try {
+        await this.controller.sendCommand({name: 'protocol_version'})
+      } catch (err) {
+        // Best-effort interrupt: callers don't await this, so swallow the
+        // rejection when the engine has already stopped.
+      }
     }
   }
 
@@ -255,12 +247,12 @@ export default class EngineSyncer extends EventEmitter {
     } else if (Math.max(board.width, board.height) > alpha.length) {
       throw new Error(
         t(
-          p =>
+          (p) =>
             `GTP engines only support board sizes that don’t exceed ${p.length}.`,
           {
-            length: alpha.length
-          }
-        )
+            length: alpha.length,
+          },
+        ),
       )
     }
 
@@ -290,8 +282,8 @@ export default class EngineSyncer extends EventEmitter {
           .concat(...node.data.AB.map(parseCompressedVertices))
           .sort()
         let coords = vertices
-          .map(v => board.stringifyVertex(v))
-          .filter(x => x != null)
+          .map((v) => board.stringifyVertex(v))
+          .filter((x) => x != null)
           .filter((x, i, arr) => i === 0 || x !== arr[i - 1])
 
         if (coords.length > 0) {
@@ -314,7 +306,7 @@ export default class EngineSyncer extends EventEmitter {
         let color = prop.slice(-1)
         let sign = color === 'B' ? 1 : -1
         let vertices = [].concat(
-          ...node.data[prop].map(parseCompressedVertices)
+          ...node.data[prop].map(parseCompressedVertices),
         )
 
         for (let vertex of vertices) {
@@ -347,7 +339,7 @@ export default class EngineSyncer extends EventEmitter {
 
           engineBoard = engineBoard.makeMove(
             sign,
-            parseVertex(coord, boardsize)
+            parseVertex(coord, boardsize),
           )
         } else if (command.name === 'set_free_handicap') {
           for (let coord of command.args) {
@@ -356,7 +348,7 @@ export default class EngineSyncer extends EventEmitter {
         }
       }
 
-      let diff = engineBoard.diff(board).filter(v => board.get(v) !== 0)
+      let diff = engineBoard.diff(board).filter((v) => board.get(v) !== 0)
 
       for (let vertex of diff) {
         let sign = board.get(vertex)
@@ -387,7 +379,7 @@ export default class EngineSyncer extends EventEmitter {
 
           history.push({
             name: 'play',
-            args: [color, board.stringifyVertex(vertex)]
+            args: [color, board.stringifyVertex(vertex)],
           })
           engineBoard = engineBoard.makeMove(sign, vertex)
         }
@@ -400,7 +392,7 @@ export default class EngineSyncer extends EventEmitter {
 
     if (!boardSynced) {
       throw new Error(
-        t('Current board arrangement can’t be recreated on the GTP engine.')
+        t('Current board arrangement can’t be recreated on the GTP engine.'),
       )
     }
 

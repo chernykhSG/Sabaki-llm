@@ -1,27 +1,31 @@
 const nativeRequire = eval('require')
 
-const {ipcMain} = require('electron')
-var remote = null
-try {
-  remote = require('@electron/remote')
-} catch (e) {}
 const {readFileSync} = require('fs')
+const fs = require('fs')
 const path = require('path')
 const {load: dolmLoad, getKey: dolmGetKey} = require('dolm')
 const languages = require('@sabaki/i18n')
 
 const isElectron = process.versions.electron != null
-const isRenderer = isElectron && remote != null
-const fs = require('fs')
-const app = isElectron
-  ? isRenderer
-    ? remote.app
-    : require('electron').app
-  : null
+const isRenderer = typeof window !== 'undefined' && window.sabaki != null
 
-const mainI18n = isRenderer ? remote.require('./i18n') : null
+// Электрон подключаем только в главном процессе — в renderer'е доступ к
+// ipcMain не нужен и не работает (после перехода на IPC-мост через
+// src/preload.js вместо @electron/remote)
+let ipcMain = null
+if (isElectron && !isRenderer) {
+  try {
+    ipcMain = require('electron').ipcMain
+  } catch (e) {
+    // Не в Electron-окружении
+  }
+}
+
 const setting = isRenderer
-  ? remote.require('./setting')
+  ? {
+      get: key => window.sabaki.setting.get(key),
+      set: (key, value) => window.sabaki.setting.set(key, value)
+    }
   : isElectron
   ? nativeRequire('./setting')
   : null
@@ -33,15 +37,7 @@ function getKey(input, params = {}) {
 
 const dolm = dolmLoad({}, getKey)
 
-// 获取当前应用语言，默认使用系统语言
-let getSystemLanguage = () => {
-  if (app) {
-    return app.getLocale()
-  }
-  return navigator ? navigator.language : 'en'
-}
-
-let appLang = setting == null ? getSystemLanguage() : setting.get('app.lang')
+let appLang = setting == null ? undefined : setting.get('app.lang')
 let langFilePath = setting == null ? null : setting.get('app.lang_file')
 
 exports.getKey = getKey
@@ -71,16 +67,12 @@ exports.formatWeekdayShort = function(weekday) {
 function loadStrings(strings) {
   dolm.load(strings)
 
-  if (isElectron && !isRenderer) {
+  if (isElectron && !isRenderer && ipcMain) {
     ipcMain.emit('build-menu')
   }
 }
 
 exports.loadFile = function(filename) {
-  if (isRenderer) {
-    mainI18n.loadFile(filename)
-  }
-
   try {
     loadStrings(
       Function(`
@@ -95,8 +87,9 @@ exports.loadFile = function(filename) {
       `)()
     )
 
-    // 保存当前加载的语言文件路径到设置中，以便重启后自动加载
-    if (setting != null) {
+    // Запоминаем путь к загруженному языковому файлу, чтобы подхватить
+    // его же при следующем запуске
+    if (setting != null && setting.set) {
       setting.set('app.lang_file', filename)
     }
   } catch (err) {
@@ -114,39 +107,35 @@ exports.getLanguages = function() {
   return languages
 }
 
-// 获取正确的i18n目录路径，兼容开发和打包环境
+// Каталог i18n/ лежит рядом с src/ и в dev-режиме, и в собранном приложении
+// (webpack копирует его в тот же output-каталог, что и bundle.js;
+// electron-builder упаковывает его вместе с src/ по общему правилу "**/*") —
+// поэтому путь относительно __dirname корректен в обоих случаях, без
+// обращения к app.getAppPath() (которого в новом IPC-мосту больше нет).
 function getI18nDirectory() {
-  // 在Electron环境中
-  if (isElectron && app) {
-    // 开发环境
-    if (process.env.NODE_ENV === 'development') {
-      return path.join(__dirname, '', 'i18n')
-    }
-    // 生产环境 - 使用应用目录
-    return path.join(app.getAppPath(), 'i18n')
-  }
-  // 默认路径
   return path.join(__dirname, '..', 'i18n')
 }
 
-// 扫描i18n文件夹，查找并加载匹配的语言文件
+// Сканирует папку i18n/ и загружает подходящий языковой файл, если он есть.
+// Это наш собственный механизм (в апстриме отсутствует): позволяет
+// переопределить/дополнить переводы из пакета @sabaki/i18n локальными
+// файлами ru.i18n.js/zh.i18n.js с разделами, специфичными для этого форка
+// (ai, AIChatDrawer, golaxy, GameReviewDrawer).
 function scanAndLoadLanguageFile() {
   const i18nDir = getI18nDirectory()
   let foundLanguageFile = false
 
-  // 检查i18n目录是否存在
   if (fs.existsSync(i18nDir)) {
     const files = fs.readdirSync(i18nDir)
-    const langCode = appLang.split('-')[0] // 获取语言代码（如zh-CN -> zh）
+    const langCode = (appLang || '').split('-')[0]
 
-    // 优先级：精确匹配（如zh-CN） > 语言代码匹配（如zh） > en（英文）
+    // Приоритет: точное совпадение (zh-CN) > код языка (zh) > en
     const preferredPatterns = [
       `${appLang}.i18n.js`,
       `${langCode}.i18n.js`,
       'en.i18n.js'
     ]
 
-    // 尝试按优先级加载匹配的语言文件
     for (const pattern of preferredPatterns) {
       const matchingFile = files.find(file => file === pattern)
       if (matchingFile) {
@@ -160,23 +149,18 @@ function scanAndLoadLanguageFile() {
   return foundLanguageFile
 }
 
-// 初始化语言加载顺序：
-// 1. 优先扫描i18n文件夹自动加载匹配的语言文件
-// 2. 如果扫描失败，尝试加载保存的语言文件路径（用户手动选择的）
-// 3. 回退到使用语言代码加载默认语言包
-if (!scanAndLoadLanguageFile()) {
-  // 如果扫描失败，尝试加载保存的语言文件路径
+// Порядок инициализации языка:
+// 1. Сканируем папку i18n/ на совпадающий локальный языковой файл
+// 2. Если не найден — пробуем ранее сохранённый путь (выбранный вручную)
+// 3. Иначе — грузим язык из пакета @sabaki/i18n по коду языка
+if (appLang != null && !scanAndLoadLanguageFile()) {
   if (langFilePath != null && typeof langFilePath === 'string') {
     try {
       exports.loadFile(langFilePath)
     } catch (err) {
-      // 如果加载保存的文件也失败，回退到默认语言加载
-      if (appLang != null) {
-        exports.loadLang(appLang)
-      }
+      exports.loadLang(appLang)
     }
-  } else if (appLang != null) {
-    // 没有保存的语言文件路径，回退到默认语言加载
+  } else {
     exports.loadLang(appLang)
   }
 }

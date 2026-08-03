@@ -1,8 +1,12 @@
-import * as remote from '@electron/remote'
-const setting = remote.require('./setting')
 import sabaki from '../../../modules/sabaki.js'
 import commands from './commands.js'
 import {resolveEngineSyncer} from './pluginEngineAdapter.js'
+
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
+
 class MCPHelper {
   constructor() {
     this.mcpEndpoints = []

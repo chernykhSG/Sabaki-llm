@@ -1,5 +1,4 @@
 import {shell} from 'electron'
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 import boardmatcher from '@sabaki/boardmatcher'
@@ -13,7 +12,7 @@ import {vertexEquals, typographer, noop} from '../../modules/helper.js'
 import MarkdownContentDisplay from '../MarkdownContentDisplay.js'
 
 const t = i18n.context('CommentBox')
-const setting = remote.require('./setting')
+const setting = {get: (key) => window.sabaki.setting.get(key)}
 
 let commentsCommitDelay = setting.get('comments.commit_delay')
 
@@ -23,18 +22,18 @@ class CommentTitle extends Component {
 
     this.handleEditButtonClick = () => sabaki.setMode('edit')
 
-    this.handleMoveNameHelpClick = evt => {
+    this.handleMoveNameHelpClick = (evt) => {
       evt.preventDefault()
       shell.openExternal(evt.currentTarget.href)
     }
 
-    this.handleMoveNameHelpMouseEnter = evt => {
+    this.handleMoveNameHelpMouseEnter = (evt) => {
       let matchedVertices = JSON.parse(evt.currentTarget.dataset.vertices)
 
       sabaki.setState({highlightVertices: matchedVertices})
     }
 
-    this.handleMoveNameHelpMouseLeave = evt => {
+    this.handleMoveNameHelpMouseLeave = (evt) => {
       sabaki.setState({highlightVertices: []})
     }
   }
@@ -44,7 +43,7 @@ class CommentTitle extends Component {
     treePosition,
     moveAnnotation,
     positionAnnotation,
-    title
+    title,
   }) {
     return (
       title !== this.props.title ||
@@ -67,7 +66,7 @@ class CommentTitle extends Component {
       if (node.data.EV != null) result.push(node.data.EV[0])
       if (node.data.GN != null) result.push(node.data.GN[0])
 
-      result = result.filter(x => x.trim() !== '').join(' — ')
+      result = result.filter((x) => x.trim() !== '').join(' — ')
       if (result !== '') return typographer(result)
 
       return ''
@@ -77,7 +76,7 @@ class CommentTitle extends Component {
 
     if (node.children.length === 0 && gameTree.onMainLine(treePosition)) {
       let result = gametree.getRootProperty(gameTree, 'RE', '')
-      if (result.trim() !== '') return t(p => `Result: ${p.result}`, {result})
+      if (result.trim() !== '') return t((p) => `Result: ${p.result}`, {result})
     }
 
     // Get current vertex
@@ -98,29 +97,29 @@ class CommentTitle extends Component {
     let patternMatch = boardmatcher.findPatternInMove(
       prevBoard.signMap,
       sign,
-      vertex
+      vertex,
     )
 
     if (patternMatch == null) {
       let diff = vertex
         .map((z, i) =>
-          Math.min(z + 1, [prevBoard.width, prevBoard.height][i] - z)
+          Math.min(z + 1, [prevBoard.width, prevBoard.height][i] - z),
         )
         .sort((a, b) => a - b)
 
       if (diff[0] > 6) return null
 
-      return t(p => `${p.a}-${p.b} Point`, {
+      return t((p) => `${p.a}-${p.b} Point`, {
         a: diff[0],
-        b: diff[1]
+        b: diff[1],
       })
     }
 
     let board = gametree.getBoard(gameTree, treePosition)
     let matchedVertices = [
       ...patternMatch.match.anchors,
-      ...patternMatch.match.vertices
-    ].filter(v => board.get(v) !== 0)
+      ...patternMatch.match.vertices,
+    ].filter((v) => board.get(v) !== 0)
 
     return [
       i18n.t('boardmatcher', patternMatch.pattern.name),
@@ -137,39 +136,35 @@ class CommentTitle extends Component {
 
             onClick: this.handleMoveNameHelpClick,
             onMouseEnter: this.handleMoveNameHelpMouseEnter,
-            onMouseLeave: this.handleMoveNameHelpMouseLeave
+            onMouseLeave: this.handleMoveNameHelpMouseLeave,
           },
 
           h('img', {
-            src: './node_modules/@primer/octicons/build/svg/question.svg',
+            src: './node_modules/@primer/octicons/build/svg/question-16.svg',
             width: 16,
-            height: 16
-          })
-        )
+            height: 16,
+          }),
+        ),
     ]
   }
 
   render({moveAnnotation: [ma, mv], positionAnnotation: [pa, pv], title}) {
     let moveData = {
       '-1': [t('Bad move'), t('Very bad move'), 'badmove'],
-      '0': [t('Doubtful move'), t('Very doubtful move'), 'doubtfulmove'],
-      '1': [
-        t('Interesting move'),
-        t('Very interesting move'),
-        'interestingmove'
-      ],
-      '2': [t('Good move'), t('Very good move'), 'goodmove']
+      0: [t('Doubtful move'), t('Very doubtful move'), 'doubtfulmove'],
+      1: [t('Interesting move'), t('Very interesting move'), 'interestingmove'],
+      2: [t('Good move'), t('Very good move'), 'goodmove'],
     }
 
     let positionData = {
       '-1': [t('Good for White'), t('Very good for White'), 'white'],
-      '0': [t('Even position'), t('Very even position'), 'balance'],
-      '1': [t('Good for Black'), t('Very good for Black'), 'black'],
-      '-2': [t('Unclear position'), t('Very unclear position'), 'unclear']
+      0: [t('Even position'), t('Very even position'), 'balance'],
+      1: [t('Good for Black'), t('Very good for Black'), 'black'],
+      '-2': [t('Unclear position'), t('Very unclear position'), 'unclear'],
     }
 
     let showMoveInterpretation = setting.get(
-      'comments.show_move_interpretation'
+      'comments.show_move_interpretation',
     )
 
     return h(
@@ -178,8 +173,8 @@ class CommentTitle extends Component {
         class: classNames({
           header: true,
           movestatus: ma !== null,
-          positionstatus: pa !== null
-        })
+          positionstatus: pa !== null,
+        }),
       },
 
       h('img', {
@@ -187,7 +182,7 @@ class CommentTitle extends Component {
         height: 16,
         class: 'positionstatus',
         title: pa in positionData ? positionData[pa][pv > 1 ? 1 : 0] : '',
-        src: pa in positionData ? `./img/ui/${positionData[pa][2]}.svg` : ''
+        src: pa in positionData ? `./img/ui/${positionData[pa][2]}.svg` : '',
       }),
 
       h('img', {
@@ -195,16 +190,16 @@ class CommentTitle extends Component {
         height: 16,
         class: 'movestatus',
         title: ma in moveData ? moveData[ma][mv > 1 ? 1 : 0] : '',
-        src: ma in moveData ? `./img/ui/${moveData[ma][2]}.svg` : ''
+        src: ma in moveData ? `./img/ui/${moveData[ma][2]}.svg` : '',
       }),
 
       h('img', {
-        src: './node_modules/@primer/octicons/build/svg/pencil.svg',
+        src: './node_modules/@primer/octicons/build/svg/pencil-16.svg',
         class: 'edit-button',
         title: t('Edit'),
         width: 16,
         height: 16,
-        onClick: this.handleEditButtonClick
+        onClick: this.handleEditButtonClick,
       }),
 
       h(
@@ -213,9 +208,9 @@ class CommentTitle extends Component {
         title !== ''
           ? typographer(title)
           : showMoveInterpretation
-          ? this.getCurrentMoveInterpretation()
-          : ''
-      )
+            ? this.getCurrentMoveInterpretation()
+            : '',
+      ),
     )
   }
 }
@@ -229,11 +224,11 @@ class CommentText extends Component {
     return h(
       'div',
       {
-        ref: el => (this.element = el),
-        class: 'comment'
+        ref: (el) => (this.element = el),
+        class: 'comment',
       },
 
-      h(MarkdownContentDisplay, {source: comment})
+      h(MarkdownContentDisplay, {source: comment}),
     )
   }
 }
@@ -244,7 +239,7 @@ export default class CommentBox extends Component {
 
     this.state = {
       title: '',
-      comment: ''
+      comment: '',
     }
 
     this.handleCommentInput = () => {
@@ -252,7 +247,7 @@ export default class CommentBox extends Component {
 
       let data = {
         title: this.titleInputElement.value,
-        comment: this.textareaElement.value
+        comment: this.textareaElement.value,
       }
 
       this.setState(data)
@@ -269,7 +264,7 @@ export default class CommentBox extends Component {
       clearTimeout(this.commentInputTimeout)
       onCommentInput({
         title: this.titleInputElement.value,
-        comment: this.textareaElement.value
+        comment: this.textareaElement.value,
       })
     }
 
@@ -293,6 +288,10 @@ export default class CommentBox extends Component {
       if (treePositionChanged) {
         this.textareaElement.scrollTop = 0
         this.setState({title, comment})
+      } else if (comment !== this.state.comment) {
+        // An in-place comment change (e.g. ctrl+click adds a coordinate) must
+        // refresh the textarea, or the next blur commits the stale value back.
+        this.setState({comment})
       }
 
       return
@@ -319,16 +318,16 @@ export default class CommentBox extends Component {
       positionAnnotation,
       showCommentBox,
 
-      onLinkClick = noop
+      onLinkClick = noop,
     },
-    {title, comment}
+    {title, comment},
   ) {
     return h(
       'section',
       {
-        ref: el => (this.element = el),
+        ref: (el) => (this.element = el),
         id: 'properties',
-        class: showCommentBox ? 'commentBoxShown' : ''
+        class: showCommentBox ? 'commentBoxShown' : '',
       },
 
       h(
@@ -339,13 +338,13 @@ export default class CommentBox extends Component {
           treePosition,
           moveAnnotation,
           positionAnnotation,
-          title
+          title,
         }),
 
         h(CommentText, {
           comment,
-          onLinkClick
-        })
+          onLinkClick,
+        }),
       ),
 
       h(
@@ -355,36 +354,36 @@ export default class CommentBox extends Component {
           'div',
           {class: 'header'},
           h('img', {
-            ref: el => (this.menuButtonElement = el),
-            src: './node_modules/@primer/octicons/build/svg/chevron-down.svg',
+            ref: (el) => (this.menuButtonElement = el),
+            src: './node_modules/@primer/octicons/build/svg/chevron-down-16.svg',
             width: 16,
             height: 16,
-            onClick: this.handleMenuButtonClick
+            onClick: this.handleMenuButtonClick,
           }),
 
           h(
             'div',
             {},
             h('input', {
-              ref: el => (this.titleInputElement = el),
+              ref: (el) => (this.titleInputElement = el),
               type: 'text',
               name: 'title',
               value: title,
               placeholder: t('Title'),
               onInput: this.handleCommentInput,
-              onBlur: this.handleCommentBlur
-            })
-          )
+              onBlur: this.handleCommentBlur,
+            }),
+          ),
         ),
 
         h('textarea', {
-          ref: el => (this.textareaElement = el),
+          ref: (el) => (this.textareaElement = el),
           placeholder: t('Comment'),
           value: comment,
           onInput: this.handleCommentInput,
-          onBlur: this.handleCommentBlur
-        })
-      )
+          onBlur: this.handleCommentBlur,
+        }),
+      ),
     )
   }
 }

@@ -1,6 +1,5 @@
 import {ipcRenderer} from 'electron'
-import * as remote from '@electron/remote'
-import {createElement as h, render, Component} from 'preact/compat'
+import {h, render, Component} from 'preact'
 import classNames from 'classnames'
 import fixPath from 'fix-path'
 
@@ -22,8 +21,17 @@ import sabaki from '../modules/sabaki.js'
 import * as gametree from '../modules/gametree.js'
 import * as gtplogger from '../modules/gtplogger.js'
 import * as helper from '../modules/helper.js'
+import * as utils from '../modules/utils.js'
 
-const setting = remote.require('./setting')
+if (process.env.SABAKI_E2E) window.__sabaki = sabaki
+
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => {
+    window.sabaki.setting.set(key, value)
+    return setting
+  },
+}
 const t = i18n.context('App')
 
 const leftSidebarMinWidth = setting.get('view.sidebar_minwidth')
@@ -43,7 +51,7 @@ class App extends Component {
       this.setState(change, callback)
     })
 
-    let bind = f => f.bind(this)
+    let bind = (f) => f.bind(this)
     this.handleMainLayoutSplitChange = bind(this.handleMainLayoutSplitChange)
     this.handleMainLayoutSplitFinish = bind(this.handleMainLayoutSplitFinish)
   }
@@ -51,7 +59,7 @@ class App extends Component {
   componentDidMount() {
     gtplogger.updatePath()
 
-    window.addEventListener('contextmenu', evt => {
+    window.addEventListener('contextmenu', (evt) => {
       evt.preventDefault()
     })
 
@@ -62,7 +70,7 @@ class App extends Component {
     ipcRenderer.on('load-file', (evt, ...args) => {
       setTimeout(async () => {
         await sabaki.loadFile(...args)
-        // 确保文件加载后直接跳转到最后一手
+        // Переходим сразу к последнему ходу после загрузки файла
         if (setting.get('game.goto_end_after_loading')) {
           sabaki.goToEnd()
         }
@@ -93,9 +101,9 @@ class App extends Component {
     // Handle mouse wheel
 
     for (let el of document.querySelectorAll(
-      '#main main, #graph, #winrategraph'
+      '#main main, #graph, #winrategraph',
     )) {
-      el.addEventListener('wheel', evt => {
+      el.addEventListener('wheel', (evt) => {
         evt.preventDefault()
 
         if (this.residueDeltaY == null) this.residueDeltaY = 0
@@ -113,17 +121,18 @@ class App extends Component {
 
     // Handle file drag & drop
 
-    document.body.addEventListener('dragover', evt => evt.preventDefault())
-    document.body.addEventListener('drop', evt => {
+    document.body.addEventListener('dragover', (evt) => evt.preventDefault())
+    document.body.addEventListener('drop', (evt) => {
       evt.preventDefault()
 
       if (evt.dataTransfer.files.length === 0) return
-      sabaki.loadFile(evt.dataTransfer.files[0].path)
+      const filePath = window.sabaki.getPathForFile(evt.dataTransfer.files[0])
+      sabaki.loadFile(filePath)
     })
 
     // Handle keys
 
-    document.addEventListener('keydown', evt => {
+    document.addEventListener('keydown', (evt) => {
       if (evt.key === 'Escape') {
         if (sabaki.state.openDrawer != null) {
           sabaki.closeDrawer()
@@ -172,7 +181,7 @@ class App extends Component {
       }
     })
 
-    document.addEventListener('keyup', evt => {
+    document.addEventListener('keyup', (evt) => {
       if (['ArrowUp', 'ArrowDown'].includes(evt.key)) {
         sabaki.stopAutoscrolling()
       }
@@ -180,36 +189,26 @@ class App extends Component {
 
     // Handle window closing
 
-    const handleWindowClose = () => {
-      if (this.closeWindow) return false
+    window.addEventListener('beforeunload', (evt) => {
+      if (this.closeWindow) return
 
-      // if (sabaki.askForSave()) {
-      //   sabaki.detachEngines(
-      //     this.state.attachedEngineSyncers.map(syncer => syncer.id)
-      //   )
+      evt.returnValue = ' '
 
-      //   gtplogger.close()
-      //   this.closeWindow = true
-      //   return true
-      // }
-      return false
-    }
+      setTimeout(async () => {
+        if (await sabaki.askForSave()) {
+          sabaki.detachEngines(
+            this.state.attachedEngineSyncers.map((syncer) => syncer.id),
+          )
 
-    // Browser beforeunload event - only prevent when there are unsaved changes
-    window.addEventListener('beforeunload', evt => {
-      // Only prevent navigation if there are unsaved changes
-      if (sabaki.state.modified) {
-        evt.preventDefault()
-        evt.returnValue = ' '
-      }
-    })
-
-    // Listen for 'can-close-window' message from main process
-    ipcRenderer.on('can-close-window', () => {
-      if (handleWindowClose()) {
-        // Allow window to close
-        sabaki.window.destroy()
-      }
+          gtplogger.close()
+          this.closeWindow = true
+          sabaki.window.close()
+        } else {
+          // User backed out of the close; clear any pending quit intent so a
+          // later ordinary window close still leaves the app running (macOS).
+          window.sabaki.app.cancelQuit()
+        }
+      })
     })
 
     sabaki.newFile()
@@ -340,9 +339,9 @@ class App extends Component {
           : leftSidebarWidth,
         sidebarWidth: sabaki.inferredState.showSidebar
           ? Math.max(endSideSize, sidebarMinWidth)
-          : sidebarWidth
+          : sidebarWidth,
       }),
-      () => window.dispatchEvent(new Event('resize'))
+      () => window.dispatchEvent(new Event('resize')),
     )
   }
 
@@ -370,7 +369,7 @@ class App extends Component {
         let sign = scoreBoard.get(vertex)
         if (sign === 0) continue
 
-        scoreBoard.setCaptures(-sign, x => x + 1)
+        scoreBoard.setCaptures(-sign, (x) => x + 1)
         scoreBoard.set(vertex, 0)
       }
 
@@ -378,6 +377,14 @@ class App extends Component {
         state.mode === 'estimator'
           ? influence.map(scoreBoard.signMap, {discrete: true})
           : influence.areaMap(scoreBoard.signMap)
+
+      for (let key in state.estimateOverrides) {
+        let [x, y] = key.split(',').map(Number)
+        areaMap[y][x] = utils.cycleAreaValue(
+          areaMap[y][x],
+          state.estimateOverrides[key],
+        )
+      }
     }
 
     state = {...state, ...inferredState, scoreBoard, areaMap}
@@ -388,8 +395,8 @@ class App extends Component {
         class: classNames({
           showleftsidebar: state.showLeftSidebar,
           showsidebar: state.showSidebar,
-          [state.mode]: true
-        })
+          [state.mode]: true,
+        }),
       },
 
       h(ThemeManager),
@@ -397,10 +404,12 @@ class App extends Component {
         showMenuBar: state.showMenuBar,
         disableAll: state.busy > 0,
         analysisType: state.analysisType,
+        analysisValueType: state.analysisValueType,
         showAnalysis: state.showAnalysis,
         showCoordinates: state.showCoordinates,
         coordinatesType: state.coordinatesType,
         showMoveNumbers: state.showMoveNumbers,
+        moveNumbersType: state.moveNumbersType,
         showMoveColorization: state.showMoveColorization,
         showNextMoves: state.showNextMoves,
         showSiblings: state.showSiblings,
@@ -408,7 +417,7 @@ class App extends Component {
         showGameGraph: state.showGameGraph,
         showCommentBox: state.showCommentBox,
         showLeftSidebar: state.showLeftSidebar,
-        engineGameOngoing: state.engineGameOngoing
+        engineGameOngoing: state.engineGameOngoing,
       }),
 
       h(TripleSplitContainer, {
@@ -422,7 +431,7 @@ class App extends Component {
         endSideContent: h(Sidebar, state),
 
         onChange: this.handleMainLayoutSplitChange,
-        onFinish: this.handleMainLayoutSplitFinish
+        onFinish: this.handleMainLayoutSplitFinish,
       }),
 
       h(DrawerManager, state),
@@ -431,11 +440,14 @@ class App extends Component {
         text: state.inputBoxText,
         show: state.showInputBox,
         onSubmit: state.onInputBoxSubmit,
-        onCancel: state.onInputBoxCancel
+        onCancel: state.onInputBoxCancel,
       }),
 
       h(BusyScreen, {show: state.busy > 0}),
-      h(InfoOverlay, {text: state.infoOverlayText, show: state.showInfoOverlay})
+      h(InfoOverlay, {
+        text: state.infoOverlayText,
+        show: state.showInfoOverlay,
+      }),
     )
   }
 }

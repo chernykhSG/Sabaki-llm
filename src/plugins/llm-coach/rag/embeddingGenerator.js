@@ -1,7 +1,6 @@
 var { pipeline } = require('@xenova/transformers');
 var { promises: fs } = require('fs');
 var path = require('path');
-var { app } = require('electron').remote || require('@electron/remote');
 
 class EmbeddingGenerator {
   constructor() {
@@ -12,7 +11,7 @@ class EmbeddingGenerator {
     this.cacheSize = 1000; // 缓存大小限制
     
     // 获取缓存目录路径
-    const appDataPath = app ? app.getPath('userData') : (process.env.HOME || process.env.USERPROFILE);
+    const appDataPath = window.sabaki.setting.userDataDirectory || (process.env.HOME || process.env.USERPROFILE);
     this.cacheDir = path.join(appDataPath, '.sabaki', 'embedding_cache');
   }
 

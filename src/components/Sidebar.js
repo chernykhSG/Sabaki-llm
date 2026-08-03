@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import sabaki from '../modules/sabaki.js'
 
@@ -8,7 +7,10 @@ import Slider from './sidebars/Slider.js'
 import GameGraph from './sidebars/GameGraph.js'
 import CommentBox from './sidebars/CommentBox.js'
 
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 
 const propertiesMinHeight = setting.get('view.properties_minheight')
 const winrateGraphMinHeight = setting.get('view.winrategraph_minheight')
@@ -20,7 +22,7 @@ export default class Sidebar extends Component {
 
     this.state = {
       winrateGraphHeight: setting.get('view.winrategraph_height'),
-      sidebarSplit: setting.get('view.properties_height')
+      sidebarSplit: setting.get('view.properties_height'),
     }
 
     this.handleGraphNodeClick = ({button, gameTree, treePosition, x, y}) => {
@@ -33,7 +35,7 @@ export default class Sidebar extends Component {
 
     this.handleSliderChange = ({percent}) => {
       let moveNumber = Math.round(
-        (this.props.gameTree.getHeight() - 1) * percent
+        (this.props.gameTree.getHeight() - 1) * percent,
       )
       sabaki.goToMoveNumber(moveNumber)
     }
@@ -45,7 +47,7 @@ export default class Sidebar extends Component {
     this.handleSidebarSplitChange = ({sideSize}) => {
       sideSize = Math.min(
         Math.max(propertiesMinHeight, sideSize),
-        100 - propertiesMinHeight
+        100 - propertiesMinHeight,
       )
 
       this.setState({sidebarSplit: sideSize})
@@ -58,7 +60,7 @@ export default class Sidebar extends Component {
     this.handleWinrateGraphSplitChange = ({sideSize}) => {
       sideSize = Math.min(
         Math.max(winrateGraphMinHeight, sideSize),
-        winrateGraphMaxHeight
+        winrateGraphMaxHeight,
       )
 
       this.setState({winrateGraphHeight: sideSize})
@@ -76,7 +78,7 @@ export default class Sidebar extends Component {
       sabaki.stopAutoscrolling()
     }
 
-    this.handleCommentInput = evt => {
+    this.handleCommentInput = (evt) => {
       sabaki.setComment(this.props.treePosition, evt)
     }
   }
@@ -105,6 +107,7 @@ export default class Sidebar extends Component {
       gameCurrents,
       treePosition,
 
+      analysisType,
       showWinrateGraph,
       showGameGraph,
       showCommentBox,
@@ -112,23 +115,24 @@ export default class Sidebar extends Component {
       graphGridSize,
       graphNodeSize,
 
-      winrateData
+      winrateData,
+      scoreLeadData,
     },
-    {winrateGraphHeight, sidebarSplit}
+    {winrateGraphHeight, sidebarSplit},
   ) {
     let node = gameTree.get(treePosition)
     let winrateGraphWidth = Math.max(
       Math.ceil((gameTree.getHeight() - 1) / 50) * 50,
-      1
+      1,
     )
     let level = gameTree.getLevel(treePosition)
-    showWinrateGraph = showWinrateGraph && winrateData.some(x => x != null)
+    showWinrateGraph = showWinrateGraph && winrateData.some((x) => x != null)
 
     return h(
       'section',
       {
-        ref: el => (this.element = el),
-        id: 'sidebar'
+        ref: (el) => (this.element = el),
+        id: 'sidebar',
       },
 
       h(SplitContainer, {
@@ -139,9 +143,10 @@ export default class Sidebar extends Component {
         sideContent: h(WinrateGraph, {
           lastPlayer,
           width: winrateGraphWidth,
-          data: winrateData,
+          data: analysisType === 'winrate' ? winrateData : scoreLeadData,
+          analysisType,
           currentIndex: level,
-          onCurrentIndexChange: this.handleWinrateGraphChange
+          onCurrentIndexChange: this.handleWinrateGraphChange,
         }),
 
         mainContent: h(SplitContainer, {
@@ -152,8 +157,8 @@ export default class Sidebar extends Component {
           mainContent: h(
             'div',
             {
-              ref: el => (this.horizontalSplitContainer = el),
-              class: 'graphproperties'
+              ref: (el) => (this.horizontalSplitContainer = el),
+              class: 'graphproperties',
             },
 
             h(Slider, {
@@ -166,11 +171,11 @@ export default class Sidebar extends Component {
 
               onChange: this.handleSliderChange,
               onStartAutoscrolling: this.handleStartAutoscrolling,
-              onStopAutoscrolling: this.handleStopAutoscrolling
+              onStopAutoscrolling: this.handleStopAutoscrolling,
             }),
 
             h(GameGraph, {
-              ref: component => (this.gameGraph = component),
+              ref: (component) => (this.gameGraph = component),
 
               gameTree,
               gameCurrents: gameCurrents[gameIndex],
@@ -179,13 +184,13 @@ export default class Sidebar extends Component {
               height: !showGameGraph
                 ? 0
                 : !showCommentBox
-                ? 100
-                : 100 - sidebarSplit,
+                  ? 100
+                  : 100 - sidebarSplit,
               gridSize: graphGridSize,
               nodeSize: graphNodeSize,
 
-              onNodeClick: this.handleGraphNodeClick
-            })
+              onNodeClick: this.handleGraphNodeClick,
+            }),
           ),
 
           sideContent: h(CommentBox, {
@@ -197,41 +202,41 @@ export default class Sidebar extends Component {
               node.data.BM != null
                 ? [-1, node.data.BM[0]]
                 : node.data.DO != null
-                ? [0, 1]
-                : node.data.IT != null
-                ? [1, 1]
-                : node.data.TE != null
-                ? [2, node.data.TE[0]]
-                : [null, 1],
+                  ? [0, 1]
+                  : node.data.IT != null
+                    ? [1, 1]
+                    : node.data.TE != null
+                      ? [2, node.data.TE[0]]
+                      : [null, 1],
             positionAnnotation:
               node.data.UC != null
                 ? [-2, node.data.UC[0]]
                 : node.data.GW != null
-                ? [-1, node.data.GW[0]]
-                : node.data.DM != null
-                ? [0, node.data.DM[0]]
-                : node.data.GB != null
-                ? [1, node.data.GB[0]]
-                : [null, 1],
+                  ? [-1, node.data.GW[0]]
+                  : node.data.DM != null
+                    ? [0, node.data.DM[0]]
+                    : node.data.GB != null
+                      ? [1, node.data.GB[0]]
+                      : [null, 1],
             title: node.data.N != null ? node.data.N[0] : '',
             comment: node.data.C != null ? node.data.C[0] : '',
 
-            onCommentInput: this.handleCommentInput
+            onCommentInput: this.handleCommentInput,
           }),
 
           onChange: this.handleSidebarSplitChange,
-          onFinish: this.handleSidebarSplitFinish
+          onFinish: this.handleSidebarSplitFinish,
         }),
 
         onChange: this.handleWinrateGraphSplitChange,
-        onFinish: this.handleWinrateGraphSplitFinish
-      })
+        onFinish: this.handleWinrateGraphSplitFinish,
+      }),
     )
   }
 }
 
-Sidebar.getDerivedStateFromProps = function({showWinrateGraph, winrateData}) {
+Sidebar.getDerivedStateFromProps = function ({showWinrateGraph, winrateData}) {
   return {
-    showWinrateGraph: showWinrateGraph && winrateData.some(x => x != null)
+    showWinrateGraph: showWinrateGraph && winrateData.some((x) => x != null),
   }
 }

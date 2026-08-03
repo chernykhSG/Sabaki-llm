@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 
@@ -9,7 +8,10 @@ import {noop, getScore} from '../../modules/helper.js'
 import Drawer from './Drawer.js'
 
 const t = i18n.context('ScoreDrawer')
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 
 class ScoreRow extends Component {
   render({method, score, komi, handicap, sign}) {
@@ -18,8 +20,8 @@ class ScoreRow extends Component {
     let total = !score
       ? 0
       : method === 'area'
-      ? score.area[index]
-      : score.territory[index] + score.captures[index]
+        ? score.area[index]
+        : score.territory[index] + score.captures[index]
 
     if (sign < 0) total += komi
     if (method === 'area' && sign < 0) total += handicap
@@ -34,31 +36,31 @@ class ScoreRow extends Component {
           src: `./node_modules/@sabaki/shudan/css/stone_${sign}.svg`,
           alt: sign > 0 ? t('Black') : t('White'),
           width: 24,
-          height: 24
-        })
+          height: 24,
+        }),
       ),
       h(
         'td',
         {class: classNames({disabled: method === 'territory'})},
-        score ? score.area[index] : '-'
+        score ? score.area[index] : '-',
       ),
       h(
         'td',
         {class: classNames({disabled: method === 'area'})},
-        score ? score.territory[index] : '-'
+        score ? score.territory[index] : '-',
       ),
       h(
         'td',
         {class: classNames({disabled: method === 'area'})},
-        score ? score.captures[index] : '-'
+        score ? score.captures[index] : '-',
       ),
       h('td', {}, sign < 0 ? komi : '-'),
       h(
         'td',
         {class: classNames({disabled: method === 'territory'})},
-        sign < 0 ? handicap : '-'
+        sign < 0 ? handicap : '-',
       ),
-      h('td', {}, total)
+      h('td', {}, total),
     )
   }
 }
@@ -72,7 +74,7 @@ export default class ScoreDrawer extends Component {
     this.handleAreaButtonClick = () => setting.set('scoring.method', 'area')
     this.handleCloseButtonClick = () => sabaki.closeDrawer()
 
-    this.handleSubmitButtonClick = evt => {
+    this.handleSubmitButtonClick = (evt) => {
       evt.preventDefault()
 
       let {onSubmitButtonClick = noop} = this.props
@@ -96,7 +98,7 @@ export default class ScoreDrawer extends Component {
       Drawer,
       {
         type: 'score',
-        show
+        show,
       },
 
       h('h2', {}, t('Score')),
@@ -111,10 +113,10 @@ export default class ScoreDrawer extends Component {
             'a',
             {
               href: '#',
-              onClick: this.handleAreaButtonClick
+              onClick: this.handleAreaButtonClick,
             },
-            t('Area')
-          )
+            t('Area'),
+          ),
         ),
         h(
           'li',
@@ -123,11 +125,11 @@ export default class ScoreDrawer extends Component {
             'a',
             {
               href: '#',
-              onClick: this.handleTerritoryButtonClick
+              onClick: this.handleTerritoryButtonClick,
             },
-            t('Territory')
-          )
-        )
+            t('Territory'),
+          ),
+        ),
       ),
 
       h(
@@ -145,15 +147,15 @@ export default class ScoreDrawer extends Component {
             h('th', {disabled: method === 'area'}, t('Captures')),
             h('th', {}, t('Komi')),
             h('th', {disabled: method === 'territory'}, t('Handicap')),
-            h('th', {}, t('Total'))
-          )
+            h('th', {}, t('Total')),
+          ),
         ),
         h(
           'tbody',
           {},
           h(ScoreRow, {method, score, komi, handicap: 0, sign: 1}),
-          h(ScoreRow, {method, score, komi, handicap, sign: -1})
-        )
+          h(ScoreRow, {method, score, komi, handicap, sign: -1}),
+        ),
       ),
 
       h(
@@ -172,9 +174,9 @@ export default class ScoreDrawer extends Component {
               'button',
               {
                 type: 'submit',
-                onClick: this.handleSubmitButtonClick
+                onClick: this.handleSubmitButtonClick,
               },
-              t('Update Result')
+              t('Update Result'),
             ),
           ' ',
 
@@ -182,12 +184,12 @@ export default class ScoreDrawer extends Component {
             'button',
             {
               type: 'reset',
-              onClick: this.handleCloseButtonClick
+              onClick: this.handleCloseButtonClick,
             },
-            t('Close')
-          )
-        )
-      )
+            t('Close'),
+          ),
+        ),
+      ),
     )
   }
 }

@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import aiHelper from './ai.js'
 import {ApiKeyManager} from 'llm-service-provider'
 import {shell} from 'electron'
@@ -6,7 +5,10 @@ import {shell} from 'electron'
 class AIManager {
   constructor(sabaki) {
     this.sabaki = sabaki
-    this.setting = remote.require('./setting')
+    this.setting = {
+      get: (key) => window.sabaki.setting.get(key),
+      set: (key, value) => window.sabaki.setting.set(key, value),
+    }
   }
 
   openApiKeyManager() {

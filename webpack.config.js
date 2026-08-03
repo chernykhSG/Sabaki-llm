@@ -6,7 +6,7 @@ module.exports = (env, argv) => ({
 
   output: {
     filename: 'bundle.js',
-    path: __dirname
+    path: __dirname,
   },
 
   devtool: argv.mode === 'production' ? 'source-map' : 'eval-source-map',
@@ -53,7 +53,9 @@ module.exports = (env, argv) => ({
 
   externals: {
     '@sabaki/i18n': 'commonjs2 @sabaki/i18n',
+    'cross-spawn': 'null',
     'iconv-lite': 'commonjs2 iconv-lite',
+    moment: 'null',
     'node:crypto': 'crypto'
   }
 })

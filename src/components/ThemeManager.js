@@ -1,17 +1,23 @@
 import {join} from 'path'
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import sabaki from '../modules/sabaki.js'
 import ColorThief from '@mariotacke/color-thief'
 
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  getThemes: () => window.sabaki.setting.getThemes(),
+  get stylesPath() {
+    return window.sabaki.setting.stylesPath
+  },
+  onDidChange: (callback) => window.sabaki.setting.onDidChange(callback),
+}
 const colorThief = new ColorThief()
 
 async function getColorFromPath(path) {
   try {
     let img = new Image()
     img.src = path
-    await new Promise(resolve => img.addEventListener('load', resolve))
+    await new Promise((resolve) => img.addEventListener('load', resolve))
 
     return colorThief.getColor(img)
   } catch (err) {}
@@ -27,9 +33,7 @@ export default class ThemeManager extends Component {
 
     this.updateSettingState()
 
-    setting.events.on(sabaki.window.id, 'change', ({key}) =>
-      this.updateSettingState(key)
-    )
+    setting.onDidChange(({key}) => this.updateSettingState(key))
   }
 
   shouldComponentUpdate(_, state) {
@@ -53,7 +57,7 @@ export default class ThemeManager extends Component {
       'theme.custom_blackstones': 'blackStonePath',
       'theme.custom_whitestones': 'whiteStonePath',
       'theme.custom_board': 'boardPath',
-      'theme.custom_background': 'backgroundPath'
+      'theme.custom_background': 'backgroundPath',
     }
 
     if (key == null) {
@@ -78,28 +82,28 @@ export default class ThemeManager extends Component {
     }
 
     if (boardPath != null && prevState.boardPath !== boardPath) {
-      getColorFromPath(boardPath).then(color =>
+      getColorFromPath(boardPath).then((color) =>
         this.setState({
-          boardBackground: color ? `rgb(${color.join(',')})` : undefined
-        })
+          boardBackground: color ? `rgb(${color.join(',')})` : undefined,
+        }),
       )
     }
 
     if (blackStonePath != null && prevState.blackStonePath !== blackStonePath) {
-      getColorFromPath(blackStonePath).then(color =>
+      getColorFromPath(blackStonePath).then((color) =>
         this.setState({
           blackStoneBackground: color ? `rgb(${color.join(',')})` : undefined,
-          blackStoneForeground: color ? getForeground(color) : undefined
-        })
+          blackStoneForeground: color ? getForeground(color) : undefined,
+        }),
       )
     }
 
     if (whiteStonePath != null && prevState.whiteStonePath !== whiteStonePath) {
-      getColorFromPath(whiteStonePath).then(color =>
+      getColorFromPath(whiteStonePath).then((color) =>
         this.setState({
           whiteStoneBackground: color ? `rgb(${color.join(',')})` : undefined,
-          whiteStoneForeground: color ? getForeground(color) : undefined
-        })
+          whiteStoneForeground: color ? getForeground(color) : undefined,
+        }),
       )
     }
   }
@@ -116,8 +120,8 @@ export default class ThemeManager extends Component {
       blackStoneBackground = 'black',
       blackStoneForeground = 'white',
       whiteStoneBackground = 'white',
-      whiteStoneForeground = 'black'
-    }
+      whiteStoneForeground = 'black',
+    },
   ) {
     let currentTheme = setting.getThemes()[currentThemeId]
 
@@ -130,7 +134,7 @@ export default class ThemeManager extends Component {
         h('link', {
           rel: 'stylesheet',
           type: 'text/css',
-          href: join(currentTheme.path, currentTheme.main || 'styles.css')
+          href: join(currentTheme.path, currentTheme.main || 'styles.css'),
         }),
 
       // Custom images
@@ -142,7 +146,7 @@ export default class ThemeManager extends Component {
           `.shudan-stone-image.shudan-sign_1 {
                     background-image: url('${blackStonePath.replace(
                       /\\/g,
-                      '/'
+                      '/',
                     )}');
                 } .shudan-goban {
                     --shudan-black-background-color: ${blackStoneBackground};
@@ -153,7 +157,7 @@ export default class ThemeManager extends Component {
           `.shudan-stone-image.shudan-sign_-1 {
                     background-image: url('${whiteStonePath.replace(
                       /\\/g,
-                      '/'
+                      '/',
                     )}');
                 } .shudan-goban {
                     --shudan-white-background-color: ${whiteStoneBackground};
@@ -173,9 +177,9 @@ export default class ThemeManager extends Component {
           `main {
                     background-image: url('${backgroundPath.replace(
                       /\\/g,
-                      '/'
+                      '/',
                     )}');
-                }`
+                }`,
       ),
 
       // Userstyles
@@ -183,8 +187,8 @@ export default class ThemeManager extends Component {
       h('link', {
         rel: 'stylesheet',
         type: 'text/css',
-        href: setting.stylesPath
-      })
+        href: setting.stylesPath,
+      }),
     )
   }
 }

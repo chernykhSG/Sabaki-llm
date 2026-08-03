@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 
@@ -9,7 +8,10 @@ import {startReview} from '../review/gameReviewer.js'
 import Drawer from '../../../components/drawers/Drawer.js'
 
 const t = i18n.context('GameReviewDrawer')
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value),
+}
 
 function formatWinrate(value) {
   return value == null ? '–' : `${value.toFixed(1)}%`

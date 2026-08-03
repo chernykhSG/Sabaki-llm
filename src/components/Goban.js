@@ -1,16 +1,17 @@
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 import sgf from '@sabaki/sgf'
 import {BoundedGoban} from '@sabaki/shudan'
 
 import i18n from '../i18n.js'
+import sabaki from '../modules/sabaki.js'
+import {getAnalysisHeatMapCell} from '../modules/analysis.js'
 import * as gametree from '../modules/gametree.js'
 import * as gobantransformer from '../modules/gobantransformer.js'
 import * as helper from '../modules/helper.js'
-import setting from '../setting.js'
 
 const t = i18n.context('Goban')
+const setting = {get: key => window.sabaki.setting.get(key)}
 const alpha = 'ABCDEFGHJKLMNOPQRSTUVWXYZ'
 
 export default class Goban extends Component {
@@ -22,7 +23,7 @@ export default class Goban extends Component {
       'handleVertexMouseDown',
       'handleVertexMouseMove',
       'handleVertexMouseEnter',
-      'handleVertexMouseLeave'
+      'handleVertexMouseLeave',
     ]) {
       let oldHandler = this[handler].bind(this)
       this[handler] = (evt, vertex) => {
@@ -31,14 +32,14 @@ export default class Goban extends Component {
         let {width, height} = gobantransformer.transformSize(
           this.props.board.width,
           this.props.board.height,
-          transformation
+          transformation,
         )
 
         let originalVertex = gobantransformer.transformVertex(
           vertex,
           inverse,
           width,
-          height
+          height,
         )
 
         oldHandler(evt, originalVertex)
@@ -68,21 +69,16 @@ export default class Goban extends Component {
       this.resize()
     })
 
-    // 监听设置变化事件，使用与PreferencesDrawer.js相同的窗口ID格式
-    const remote = require('@electron/remote')
-    setting.events.on(
-      remote.getCurrentWindow().id,
-      'change',
+    // Слушаем изменения настроек через IPC-мост (window.sabaki.setting)
+    this.unsubscribeSettingChange = window.sabaki.setting.onDidChange(
       this.handleSettingChange
     )
 
     this.resize()
     this.componentWillReceiveProps()
 
-    // 注册到棋盘显示控制器
-    if (window.sabaki) {
-      window.sabaki.setGobanInstance(this)
-    }
+    // Регистрируем себя в контроллере отображения доски (LLM-плагин)
+    sabaki.setGobanInstance(this)
   }
 
   componentDidUpdate() {
@@ -104,21 +100,13 @@ export default class Goban extends Component {
   }
 
   componentWillUnmount() {
-    // 移除设置变化监听器，避免内存泄漏
     try {
-      const remote = require('@electron/remote')
-      setting.events.off(
-        remote.getCurrentWindow().id,
-        'change',
-        this.handleSettingChange
-      )
+      if (this.unsubscribeSettingChange) this.unsubscribeSettingChange()
 
-      // 清理注册
-      if (window.sabaki && window.sabaki.getBoardDisplayController()) {
-        window.sabaki.getBoardDisplayController().setGoban(null)
-      }
+      let boardDisplayController = sabaki.getBoardDisplayController()
+      if (boardDisplayController) boardDisplayController.setGoban(null)
     } catch (e) {
-      // 忽略可能的错误，确保组件能够正常卸载
+      // Игнорируем возможные ошибки, чтобы компонент мог нормально размонтироваться
     }
   }
 
@@ -138,10 +126,8 @@ export default class Goban extends Component {
   }
 
   resize() {
-    let {
-      offsetWidth: maxWidth,
-      offsetHeight: maxHeight
-    } = this.element.parentElement
+    let {offsetWidth: maxWidth, offsetHeight: maxHeight} =
+      this.element.parentElement
 
     if (
       maxWidth !== this.state.maxWidth ||
@@ -186,8 +172,8 @@ export default class Goban extends Component {
       Object.assign(evt, {
         mouseDown: this.mouseDown,
         startVertex: this.startVertex,
-        vertex
-      })
+        vertex,
+      }),
     )
 
     if (!!drawLineMode && evt.mouseDown && evt.button === 0) {
@@ -203,7 +189,9 @@ export default class Goban extends Component {
     if (this.props.analysis == null) return
 
     let {sign, variations} = this.props.analysis
-    let variation = variations.find(x => helper.vertexEquals(x.vertex, vertex))
+    let variation = variations.find((x) =>
+      helper.vertexEquals(x.vertex, vertex),
+    )
     if (variation == null) return
 
     this.playVariation(sign, variation.moves)
@@ -222,7 +210,7 @@ export default class Goban extends Component {
         variationMoves: moves,
         variationSign: sign,
         variationSibling: sibling,
-        variationIndex: moves.length
+        variationIndex: moves.length,
       })
     } else if (replayMode === 'move_by_move') {
       clearInterval(this.variationIntervalId)
@@ -232,7 +220,7 @@ export default class Goban extends Component {
           variationMoves: moves,
           variationSign: sign,
           variationSibling: sibling,
-          variationIndex: variationIndex + 1
+          variationIndex: variationIndex + 1,
         }))
       }, setting.get('board.variation_replay_interval'))
     } else {
@@ -248,7 +236,7 @@ export default class Goban extends Component {
 
     this.setState({
       variationMoves: null,
-      variationIndex: -1
+      variationIndex: -1,
     })
   }
 
@@ -260,6 +248,7 @@ export default class Goban extends Component {
       paintMap = [],
       analysis,
       analysisType,
+      analysisValueType,
       highlightVertices = [],
       dimmedStones = [],
 
@@ -268,13 +257,14 @@ export default class Goban extends Component {
       coordinatesType = 'A1',
       showMoveColorization = true,
       showMoveNumbers = false,
+      moveNumbersType,
       showNextMoves = true,
       showSiblings = true,
       fuzzyStonePlacement = true,
       animateStonePlacement = true,
 
       drawLineMode = null,
-      transformation = ''
+      transformation = '',
     },
     {
       top = 0,
@@ -287,32 +277,32 @@ export default class Goban extends Component {
       variationMoves = null,
       variationSign = 1,
       variationSibling = false,
-      variationIndex = -1
-    }
+      variationIndex = -1,
+    },
   ) {
     let signMap = board.signMap
     let markerMap = board.markers
 
-    let transformLine = line =>
+    let transformLine = (line) =>
       gobantransformer.transformLine(
         line,
         transformation,
         board.width,
-        board.height
+        board.height,
       )
-    let transformVertex = v =>
+    let transformVertex = (v) =>
       gobantransformer.transformVertex(
         v,
         transformation,
         board.width,
-        board.height
+        board.height,
       )
 
     // Calculate coordinates
 
-    let getCoordFunctions = coordinatesType => {
+    let getCoordFunctions = (coordinatesType) => {
       if (coordinatesType === '1-1') {
-        return [x => x + 1, y => y + 1]
+        return [(x) => x + 1, (y) => y + 1]
       } else if (coordinatesType === 'relative') {
         let relativeCoord = (x, size) => {
           let halfSize = Math.ceil(size / 2)
@@ -325,14 +315,14 @@ export default class Goban extends Component {
         }
 
         return [
-          x => relativeCoord(x + 1, board.width),
-          y => relativeCoord(board.height - y, board.height)
+          (x) => relativeCoord(x + 1, board.width),
+          (y) => relativeCoord(board.height - y, board.height),
         ]
       } else if (coordinatesType === 'all-alpha') {
         // 全字母坐标类型，使用A-Z表示行和列，竖线反过来
         return [x => alpha[x], y => alpha[y]]
       } else {
-        return [x => alpha[x], y => board.height - y] // Default A1
+        return [(x) => alpha[x], (y) => board.height - y] // Default A1
       }
     }
 
@@ -342,7 +332,7 @@ export default class Goban extends Component {
       coordFunctions[1],
       transformation,
       board.width,
-      board.height
+      board.height,
     )
 
     // Calculate lines
@@ -366,7 +356,7 @@ export default class Goban extends Component {
       lines.push({
         v1: temporaryLine.v1,
         v2: temporaryLine.v2,
-        type: drawLineMode
+        type: drawLineMode,
       })
 
     // Calculate ghost stones
@@ -374,11 +364,11 @@ export default class Goban extends Component {
     let ghostStoneMap = []
 
     if (showNextMoves || showSiblings) {
-      ghostStoneMap = board.signMap.map(row => row.map(_ => null))
+      ghostStoneMap = board.signMap.map((row) => row.map((_) => null))
 
       if (showSiblings) {
         for (let v in board.siblingsInfo) {
-          let [x, y] = v.split(',').map(x => +x)
+          let [x, y] = v.split(',').map((x) => +x)
           let {sign} = board.siblingsInfo[v]
 
           ghostStoneMap[y][x] = {sign, faint: showNextMoves}
@@ -387,7 +377,7 @@ export default class Goban extends Component {
 
       if (showNextMoves) {
         for (let v in board.childrenInfo) {
-          let [x, y] = v.split(',').map(x => +x)
+          let [x, y] = v.split(',').map((x) => +x)
           let {sign, type} = board.childrenInfo[v]
 
           ghostStoneMap[y][x] = {sign, type: showMoveColorization ? type : null}
@@ -398,11 +388,42 @@ export default class Goban extends Component {
     // Draw move numbers
 
     if (showMoveNumbers) {
-      markerMap = markerMap.map(row => row.map(_ => null))
+      // Copy each row (markerMap aliases board.markers) so numbers overwrite
+      // only their own vertices without dropping other markup.
+      markerMap = markerMap.map((row) => [...row])
 
-      let history = [
-        ...gameTree.listNodesVertically(treePosition, -1, {})
-      ].reverse()
+      let variation = false
+      let hotspot = false
+      let history = [gameTree.get(treePosition)]
+      for (const node of gameTree.listNodesVertically(treePosition, -1, {})) {
+        if (node.id === treePosition) continue // already added
+        if (node.parentId == null) {
+          // The root node is never numbered, but it can still be the branch
+          // point of a variation when it has more than one child.
+          if (moveNumbersType === 'variation' && node.children.length > 1) {
+            variation = true
+          }
+          break
+        }
+        if (moveNumbersType === 'variation' && node.children.length > 1) {
+          variation = true
+          break
+        }
+        if (moveNumbersType === 'hotspot' && node.data.HO != null) {
+          hotspot = true
+          break
+        }
+        history.push(node)
+      }
+      if (
+        (moveNumbersType === 'variation' &&
+          gameTree.onMainLine(treePosition)) ||
+        (moveNumbersType === 'variation' && !variation) ||
+        (moveNumbersType === 'hotspot' && !hotspot)
+      ) {
+        history = []
+      }
+      history.reverse()
 
       for (let i = 0; i < history.length; i++) {
         let node = history[i]
@@ -414,7 +435,7 @@ export default class Goban extends Component {
         let [x, y] = vertex
 
         if (markerMap[y] != null && x < markerMap[y].length) {
-          markerMap[y][x] = {type: 'label', label: i.toString()}
+          markerMap[y][x] = {type: 'label', label: (i + 1).toString()}
         }
       }
     }
@@ -424,7 +445,7 @@ export default class Goban extends Component {
     let drawHeatMap = true
 
     if (variationMoves != null) {
-      markerMap = board.markers.map(x => [...x])
+      markerMap = board.markers.map((x) => [...x])
 
       if (variationSibling) {
         let prevPosition = gameTree.navigate(treePosition, -1, {})
@@ -454,46 +475,28 @@ export default class Goban extends Component {
 
     if (drawHeatMap && analysis != null) {
       let maxVisitsWin = Math.max(
-        ...analysis.variations.map(x => x.visits * x.winrate)
+        ...analysis.variations.map((x) => x.visits * x.winrate),
       )
-      heatMap = board.signMap.map(row => row.map(_ => null))
+      heatMap = board.signMap.map((row) => row.map((_) => null))
 
-      for (let {
-        vertex: [x, y],
-        visits,
-        winrate,
-        scoreLead
-      } of analysis.variations) {
-        // Calculate strength based on show_intensity setting
-        // Always use actual strength when enabled, and null when disabled
-        // Using null instead of 0 to ensure proper handling of color display
-        let showIntensity = setting.get('board.heatmap_show_intensity')
-        let strength = showIntensity
-          ? Math.round((visits * winrate * 8) / maxVisitsWin) + 1
-          : null
+      // Показывать градуированную интенсивность или плоский цвет —
+      // управляется нашей настройкой board.heatmap_show_intensity, которой
+      // нет в общей функции getAnalysisHeatMapCell (апстрим), поэтому
+      // применяем её поверх результата, не трогая саму функцию.
+      let showIntensity = setting.get('board.heatmap_show_intensity')
 
-        winrate =
-          strength <= 3 ? Math.floor(winrate) : Math.floor(winrate * 10) / 10
-        scoreLead = scoreLead == null ? null : Math.round(scoreLead * 10) / 10
-        if (scoreLead === 0) scoreLead = 0 // Avoid -0
+      for (let variation of analysis.variations) {
+        let [x, y] = variation.vertex
 
-        heatMap[y][x] = {
-          strength,
-          text:
-            visits < 10
-              ? ''
-              : [
-                  analysisType === 'winrate'
-                    ? i18n.formatNumber(winrate) +
-                      (Math.floor(winrate) === winrate ? '%' : '')
-                    : analysisType === 'scoreLead' && scoreLead != null
-                    ? (scoreLead >= 0 ? '+' : '') + i18n.formatNumber(scoreLead)
-                    : '–',
-                  visits < 1000
-                    ? i18n.formatNumber(visits)
-                    : i18n.formatNumber(Math.round(visits / 100) / 10) + 'k'
-                ].join('\n')
-        }
+        let cell = getAnalysisHeatMapCell(
+          variation,
+          analysis,
+          maxVisitsWin,
+          {analysisType, analysisValueType},
+          i18n.formatNumber,
+        )
+
+        heatMap[y][x] = showIntensity ? cell : {...cell, strength: null}
       }
     }
 
@@ -501,7 +504,7 @@ export default class Goban extends Component {
       id: 'goban',
       class: classNames({crosshair}),
       style: {top, left},
-      innerProps: {ref: el => (this.element = el)},
+      innerProps: {ref: (el) => (this.element = el)},
 
       maxWidth,
       maxHeight,
@@ -516,10 +519,10 @@ export default class Goban extends Component {
       markerMap: gobantransformer.transformMap(markerMap, transformation),
       ghostStoneMap: gobantransformer.transformMap(
         ghostStoneMap,
-        transformation
+        transformation,
       ),
       paintMap: gobantransformer.transformMap(paintMap, transformation, {
-        ignoreInvert: true
+        ignoreInvert: true,
       }),
       heatMap: gobantransformer.transformMap(heatMap, transformation),
       lines: lines.map(transformLine),
@@ -530,7 +533,7 @@ export default class Goban extends Component {
       onVertexMouseDown: this.handleVertexMouseDown,
       onVertexMouseMove: this.handleVertexMouseMove,
       onVertexMouseEnter: this.handleVertexMouseEnter,
-      onVertexMouseLeave: this.handleVertexMouseLeave
+      onVertexMouseLeave: this.handleVertexMouseLeave,
     })
   }
 }

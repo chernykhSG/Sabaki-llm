@@ -1,10 +1,9 @@
 import {existsSync} from 'fs'
 import {shell} from 'electron'
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 import classNames from 'classnames'
 import {join} from 'path'
-import rimraf from 'rimraf'
+import {rimraf} from 'rimraf'
 import {v4 as uuid} from 'uuid'
 import natsort from 'natsort'
 
@@ -14,12 +13,24 @@ import {showOpenDialog, showMessageBox} from '../../modules/dialog.js'
 import {
   copyFolderSync,
   noop,
-  isWritableDirectory
+  isWritableDirectory,
 } from '../../modules/helper.js'
 import * as gtplogger from '../../modules/gtplogger.js'
 import Drawer from './Drawer.js'
 
-const setting = remote.require('./setting')
+const setting = {
+  get: (key) => window.sabaki.setting.get(key),
+  set: (key, value) => {
+    window.sabaki.setting.set(key, value)
+    return setting
+  },
+  getThemes: () => window.sabaki.setting.getThemes(),
+  loadThemes: () => window.sabaki.setting.loadThemes(),
+  get themesDirectory() {
+    return window.sabaki.setting.themesDirectory
+  },
+  onDidChange: (callback) => window.sabaki.setting.onDidChange(callback),
+}
 const t = i18n.context('PreferencesDrawer')
 
 class PreferencesItem extends Component {
@@ -27,20 +38,21 @@ class PreferencesItem extends Component {
     super(props)
 
     this.state = {
-      value: setting.get(props.id)
+      value: setting.get(props.id),
     }
 
-    this.handleChange = evt => {
+    this.handleChange = (evt) => {
       const newValue =
         this.props.type === 'checkbox'
           ? evt.currentTarget.checked
           : evt.currentTarget.value
       setting.set(this.props.id, newValue)
+
       let {onChange = noop} = this.props
       onChange(Object.assign({checked: newValue}, this.props))
     }
 
-    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+    setting.onDidChange(({key, value}) => {
       if (key === this.props.id) {
         this.setState({value})
       }
@@ -76,12 +88,12 @@ class PreferencesItem extends Component {
         h('input', {
           type: 'checkbox',
           checked: value,
-          onChange: this.handleChange
+          onChange: this.handleChange,
         }),
         ' ',
 
-        text
-      )
+        text,
+      ),
     )
   }
 }
@@ -91,17 +103,17 @@ class NumberSettingItem extends Component {
     super(props)
 
     this.state = {
-      value: setting.get(props.id)
+      value: setting.get(props.id),
     }
 
-    this.handleChange = evt => {
+    this.handleChange = (evt) => {
       let value = +evt.currentTarget.value
       if (isNaN(value)) return
 
       setting.set(this.props.id, value)
     }
 
-    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+    setting.onDidChange(({key, value}) => {
       if (key === this.props.id) {
         this.setState({value})
       }
@@ -135,14 +147,14 @@ class GeneralTab extends Component {
 
     this.state = {
       appLang: setting.get('app.lang'),
-      variationReplayMode: setting.get('board.variation_replay_mode')
+      variationReplayMode: setting.get('board.variation_replay_mode'),
     }
 
-    this.handleSoundEnabledChange = evt => {
+    this.handleSoundEnabledChange = (evt) => {
       sabaki.window.webContents.audioMuted = !evt.checked
     }
 
-    this.handleTreeStyleChange = evt => {
+    this.handleTreeStyleChange = (evt) => {
       let data = {compact: [16, 4], spacious: [22, 4], big: [26, 6]}
       let [graphGridSize, graphNodeSize] = data[evt.currentTarget.value]
 
@@ -150,21 +162,24 @@ class GeneralTab extends Component {
       setting.set('graph.node_size', graphNodeSize)
     }
 
-    this.handleLanguageChange = evt => {
+    this.handleLanguageChange = (evt) => {
       setting.set('app.lang', evt.currentTarget.value)
 
       showMessageBox(
-        t(p => `Please restart ${p.appName} to apply your language setting.`, {
-          appName: sabaki.appName
-        })
+        t(
+          (p) => `Please restart ${p.appName} to apply your language setting.`,
+          {
+            appName: sabaki.appName,
+          },
+        ),
       )
     }
 
-    this.handleVariationReplayModeChange = evt => {
+    this.handleVariationReplayModeChange = (evt) => {
       setting.set('board.variation_replay_mode', evt.currentTarget.value)
     }
 
-    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+    setting.onDidChange(({key, value}) => {
       if (key === 'app.lang') {
         this.setState({appLang: value})
       } else if (key === 'board.variation_replay_mode') {
@@ -182,28 +197,32 @@ class GeneralTab extends Component {
         {},
         h(PreferencesItem, {
           id: 'app.enable_hardware_acceleration',
-          text: t('Enable hardware acceleration if possible')
+          text: t('Enable hardware acceleration if possible'),
         }),
         h(PreferencesItem, {
           id: 'app.startup_check_updates',
-          text: t('Check for updates at startup')
+          text: t('Check for updates at startup'),
         }),
         h(PreferencesItem, {
           id: 'sound.enable',
           text: t('Enable sounds'),
-          onChange: this.handleSoundEnabledChange
+          onChange: this.handleSoundEnabledChange,
         }),
         h(PreferencesItem, {
           id: 'game.goto_end_after_loading',
-          text: t('Jump to end after loading file')
+          text: t('Jump to end after loading file'),
         }),
         h(PreferencesItem, {
           id: 'view.fuzzy_stone_placement',
-          text: t('Fuzzy stone placement')
+          text: t('Fuzzy stone placement'),
         }),
         h(PreferencesItem, {
           id: 'view.animated_stone_placement',
-          text: t('Animate fuzzy placement')
+          text: t('Animate fuzzy placement'),
+        }),
+        h(PreferencesItem, {
+          id: 'app.always_show_result',
+          text: t('Always show game result'),
         }),
 
         h(
@@ -223,30 +242,30 @@ class GeneralTab extends Component {
                 'option',
                 {
                   value: 'disabled',
-                  selected: this.state.variationReplayMode === 'disabled'
+                  selected: this.state.variationReplayMode === 'disabled',
                 },
-                t('Disabled')
+                t('Disabled'),
               ),
 
               h(
                 'option',
                 {
                   value: 'move_by_move',
-                  selected: this.state.variationReplayMode === 'move_by_move'
+                  selected: this.state.variationReplayMode === 'move_by_move',
                 },
-                t('Move by Move')
+                t('Move by Move'),
               ),
 
               h(
                 'option',
                 {
                   value: 'instantly',
-                  selected: this.state.variationReplayMode === 'instantly'
+                  selected: this.state.variationReplayMode === 'instantly',
                 },
-                t('Instantly')
-              )
-            )
-          )
+                t('Instantly'),
+              ),
+            ),
+          ),
         ),
 
         h(
@@ -266,18 +285,18 @@ class GeneralTab extends Component {
                 .filter(
                   ([, entry]) =>
                     entry.stats != null &&
-                    entry.stats.translatedStringsCount > 0
+                    entry.stats.translatedStringsCount > 0,
                 )
                 .map(([locale, entry]) =>
                   h(
                     'option',
                     {
                       value: locale,
-                      selected: this.state.appLang === locale
+                      selected: this.state.appLang === locale,
                     },
-                    `${entry.nativeName} (${entry.name})`
-                  )
-                )
+                    `${entry.nativeName} (${entry.name})`,
+                  ),
+                ),
             ),
             ' ',
             h(
@@ -285,11 +304,11 @@ class GeneralTab extends Component {
               {},
               i18n.formatNumber(
                 Math.floor(
-                  i18n.getLanguages()[this.state.appLang].stats.progress * 100
-                )
-              ) + '%'
-            )
-          )
+                  i18n.getLanguages()[this.state.appLang].stats.progress * 100,
+                ),
+              ) + '%',
+            ),
+          ),
         ),
 
         h(
@@ -309,31 +328,31 @@ class GeneralTab extends Component {
                 'option',
                 {
                   value: 'compact',
-                  selected: graphGridSize < 22
+                  selected: graphGridSize < 22,
                 },
-                t('Compact')
+                t('Compact'),
               ),
 
               h(
                 'option',
                 {
                   value: 'spacious',
-                  selected: graphGridSize === 22
+                  selected: graphGridSize === 22,
                 },
-                t('Spacious')
+                t('Spacious'),
               ),
 
               h(
                 'option',
                 {
                   value: 'big',
-                  selected: graphGridSize > 22
+                  selected: graphGridSize > 22,
                 },
-                t('Big')
-              )
-            )
-          )
-        )
+                t('Big'),
+              ),
+            ),
+          ),
+        ),
       ),
 
       h(
@@ -341,40 +360,40 @@ class GeneralTab extends Component {
         {},
         h(PreferencesItem, {
           id: 'comments.show_move_interpretation',
-          text: t('Show automatic move titles')
+          text: t('Show automatic move titles'),
         }),
         h(PreferencesItem, {
           id: 'game.show_ko_warning',
-          text: t('Show ko warning')
+          text: t('Show ko warning'),
         }),
         h(PreferencesItem, {
           id: 'game.show_suicide_warning',
-          text: t('Show suicide warning')
+          text: t('Show suicide warning'),
         }),
         h(PreferencesItem, {
           id: 'edit.show_removenode_warning',
-          text: t('Show remove node warning')
+          text: t('Show remove node warning'),
         }),
         h(PreferencesItem, {
           id: 'edit.show_removeothervariations_warning',
-          text: t('Show remove other variations warning')
+          text: t('Show remove other variations warning'),
         }),
         h(PreferencesItem, {
           id: 'file.show_reload_warning',
-          text: t('Offer to reload file if changed externally')
+          text: t('Offer to reload file if changed externally'),
         }),
         h(PreferencesItem, {
           id: 'edit.click_currentvertex_to_remove',
-          text: t('Click last played stone to remove')
+          text: t('Click last played stone to remove'),
         }),
         h(PreferencesItem, {
           id: 'view.winrategraph_invert',
-          text: t('Invert winrate graph')
+          text: t('Invert winrate graph'),
         }),
         h(PreferencesItem, {
           id: 'board.heatmap_show_intensity',
-          text: t('Show different heatmap color intensities')
-        })
+          text: t('Show different heatmap color intensities'),
+        }),
       ),
 
       h(
@@ -385,16 +404,16 @@ class GeneralTab extends Component {
           text: t('Game review winrate drop threshold (%):'),
           min: 1,
           max: 50,
-          step: 1
+          step: 1,
         }),
         h(NumberSettingItem, {
           id: 'review.visits',
           text: t('Game review KataGo visits per move:'),
           min: 10,
           max: 2000,
-          step: 10
-        })
-      )
+          step: 10,
+        }),
+      ),
     )
   }
 }
@@ -404,29 +423,29 @@ class PathInputItem extends Component {
     super(props)
 
     this.state = {
-      value: setting.get(props.id)
+      value: setting.get(props.id),
     }
 
-    this.handlePathChange = evt => {
+    this.handlePathChange = (evt) => {
       let value =
         evt.currentTarget.value.trim() === '' ? null : evt.currentTarget.value
 
       setting.set(this.props.id, value)
     }
 
-    this.handleBrowseButtonClick = evt => {
-      let result = showOpenDialog({
+    this.handleBrowseButtonClick = async (evt) => {
+      let result = await showOpenDialog({
         properties:
           this.props.chooseDirectory != null
             ? ['openDirectory', 'createDirectory']
-            : ['openFile']
+            : ['openFile'],
       })
       if (!result || result.length === 0) return
 
       this.handlePathChange({currentTarget: {value: result[0]}})
     }
 
-    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+    setting.onDidChange(({key, value}) => {
       if (key === this.props.id) {
         this.setState({value: value})
       }
@@ -450,20 +469,20 @@ class PathInputItem extends Component {
           type: 'search',
           placeholder: t('Path'),
           value,
-          onChange: this.handlePathChange
+          onChange: this.handlePathChange,
         }),
 
         h(
           'a',
           {
             class: 'browse',
-            onClick: this.handleBrowseButtonClick
+            onClick: this.handleBrowseButtonClick,
           },
           h('img', {
-            src: './node_modules/@primer/octicons/build/svg/file-directory.svg',
+            src: './node_modules/@primer/octicons/build/svg/file-directory-16.svg',
             title: t('Browse…'),
-            height: 14
-          })
+            height: 14,
+          }),
         ),
 
         value &&
@@ -474,14 +493,14 @@ class PathInputItem extends Component {
             'a',
             {class: 'invalid'},
             h('img', {
-              src: './node_modules/@primer/octicons/build/svg/alert.svg',
+              src: './node_modules/@primer/octicons/build/svg/alert-16.svg',
               title: this.props.chooseDirectory
                 ? t('Directory not found')
                 : t('File not found'),
-              height: 14
-            })
-          )
-      )
+              height: 14,
+            }),
+          ),
+      ),
     )
   }
 }
@@ -491,49 +510,51 @@ class ThemesTab extends Component {
     super()
 
     this.state = {
-      currentTheme: setting.get('theme.current')
+      currentTheme: setting.get('theme.current'),
     }
 
-    this.handleThemeChange = evt => {
+    this.handleThemeChange = (evt) => {
       let value =
         evt.currentTarget.value === '' ? null : evt.currentTarget.value
 
       setting.set('theme.current', value)
     }
 
-    this.handleLinkClick = evt => {
+    this.handleLinkClick = (evt) => {
       evt.preventDefault()
 
       shell.openExternal(evt.currentTarget.href)
     }
 
-    this.handleUninstallButton = evt => {
+    this.handleUninstallButton = async (evt) => {
       evt.preventDefault()
 
-      let result = showMessageBox(
+      let result = await showMessageBox(
         t('Do you really want to uninstall this theme?'),
         'warning',
         [t('Uninstall'), t('Cancel')],
-        1
+        1,
       )
       if (result === 1) return
 
       let {path} = setting.getThemes()[this.state.currentTheme]
 
-      rimraf(path, err => {
-        if (err) return showMessageBox(t('Uninstallation failed.'), 'error')
+      try {
+        await rimraf(path)
+      } catch {
+        return showMessageBox(t('Uninstallation failed.'), 'error')
+      }
 
-        setting.loadThemes()
-        setting.set('theme.current', null)
-      })
+      await setting.loadThemes()
+      setting.set('theme.current', null)
     }
 
-    this.handleInstallButton = evt => {
+    this.handleInstallButton = async (evt) => {
       evt.preventDefault()
 
-      let result = showOpenDialog({
+      let result = await showOpenDialog({
         properties: ['openFile'],
-        filters: [{name: t('Sabaki Themes'), extensions: ['asar']}]
+        filters: [{name: t('Sabaki Themes'), extensions: ['asar']}],
       })
       if (!result || result.length === 0) return
 
@@ -542,14 +563,14 @@ class ThemesTab extends Component {
       try {
         copyFolderSync(result[0], join(setting.themesDirectory, id))
 
-        setting.loadThemes()
+        await setting.loadThemes()
         setting.set('theme.current', id)
       } catch (err) {
         return showMessageBox(t('Installation failed.'), 'error')
       }
     }
 
-    setting.events.on(sabaki.window.id, 'change', ({key, value}) => {
+    setting.onDidChange(({key, value}) => {
       if (key === 'theme.current') {
         this.setState({currentTheme: value})
       }
@@ -569,20 +590,20 @@ class ThemesTab extends Component {
         {class: 'userpaths'},
         h(PathInputItem, {
           id: 'theme.custom_blackstones',
-          text: t('Black stone image:')
+          text: t('Black stone image:'),
         }),
         h(PathInputItem, {
           id: 'theme.custom_whitestones',
-          text: t('White stone image:')
+          text: t('White stone image:'),
         }),
         h(PathInputItem, {
           id: 'theme.custom_board',
-          text: t('Board image:')
+          text: t('Board image:'),
         }),
         h(PathInputItem, {
           id: 'theme.custom_background',
-          text: t('Background image:')
-        })
+          text: t('Background image:'),
+        }),
       ),
 
       h('h3', {}, t('Current Theme')),
@@ -597,20 +618,20 @@ class ThemesTab extends Component {
           h(
             'option',
             {value: '', selected: currentTheme == null},
-            t('Default')
+            t('Default'),
           ),
 
-          Object.keys(setting.getThemes()).map(id =>
+          Object.keys(setting.getThemes()).map((id) =>
             h(
               'option',
               {
                 value: id,
-                selected: currentTheme && currentTheme.id === id
+                selected: currentTheme && currentTheme.id === id,
               },
 
-              setting.getThemes()[id].name
-            )
-          )
+              setting.getThemes()[id].name,
+            ),
+          ),
         ),
         ' ',
 
@@ -619,9 +640,9 @@ class ThemesTab extends Component {
             'button',
             {
               type: 'button',
-              onClick: this.handleUninstallButton
+              onClick: this.handleUninstallButton,
             },
-            t('Uninstall')
+            t('Uninstall'),
           ),
 
         h(
@@ -631,20 +652,20 @@ class ThemesTab extends Component {
             'button',
             {
               type: 'button',
-              onClick: this.handleInstallButton
+              onClick: this.handleInstallButton,
             },
-            t('Install Theme…')
+            t('Install Theme…'),
           ),
           ' ',
           h(
             'a',
             {
               href: `https://github.com/SabakiHQ/Sabaki/blob/v${sabaki.version}/docs/guides/theme-directory.md`,
-              onClick: this.handleLinkClick
+              onClick: this.handleLinkClick,
             },
-            t('Get more themes…')
-          )
-        )
+            t('Get more themes…'),
+          ),
+        ),
       ),
 
       currentTheme && [
@@ -652,8 +673,8 @@ class ThemesTab extends Component {
           'p',
           {class: 'meta'},
           currentTheme.author &&
-            t(p => `by ${p.author}`, {
-              author: currentTheme.author
+            t((p) => `by ${p.author}`, {
+              author: currentTheme.author,
             }),
           currentTheme.author && currentTheme.homepage && ' — ',
           currentTheme.homepage &&
@@ -663,10 +684,10 @@ class ThemesTab extends Component {
                 class: 'homepage',
                 href: currentTheme.homepage,
                 title: currentTheme.homepage,
-                onClick: this.handleLinkClick
+                onClick: this.handleLinkClick,
               },
-              t('Homepage')
-            )
+              t('Homepage'),
+            ),
         ),
 
         h(
@@ -676,9 +697,9 @@ class ThemesTab extends Component {
             h('span', {class: 'version'}, 'v' + currentTheme.version),
           ' ',
 
-          currentTheme.description
-        )
-      ]
+          currentTheme.description,
+        ),
+      ],
     )
   }
 }
@@ -687,17 +708,17 @@ class EngineItem extends Component {
   constructor() {
     super()
 
-    this.handleChange = evt => {
+    this.handleChange = (evt) => {
       let {id, name, path, args, commands, onChange = noop} = this.props
       let element = evt.currentTarget
 
       onChange({id, name, path, args, commands, [element.name]: element.value})
     }
 
-    this.handleBrowseButtonClick = () => {
-      let result = showOpenDialog({
+    this.handleBrowseButtonClick = async () => {
+      let result = await showOpenDialog({
         properties: ['openFile'],
-        filters: [{name: t('All Files'), extensions: ['*']}]
+        filters: [{name: t('All Files'), extensions: ['*']}],
       })
       if (!result || result.length === 0) return
 
@@ -723,18 +744,18 @@ class EngineItem extends Component {
           {
             class: 'remove',
             title: t('Remove'),
-            onClick: this.handleRemoveButtonClick
+            onClick: this.handleRemoveButtonClick,
           },
 
-          h('img', {src: './node_modules/@primer/octicons/build/svg/x.svg'})
+          h('img', {src: './node_modules/@primer/octicons/build/svg/x-16.svg'}),
         ),
         h('input', {
           type: 'text',
           placeholder: t('(Unnamed Engine)'),
           value: name,
           name: 'name',
-          onChange: this.handleChange
-        })
+          onChange: this.handleChange,
+        }),
       ),
       h(
         'p',
@@ -744,31 +765,35 @@ class EngineItem extends Component {
           {
             class: 'browse',
             title: t('Browse…'),
-            onClick: this.handleBrowseButtonClick
+            onClick: this.handleBrowseButtonClick,
           },
 
           h('img', {
-            src: './node_modules/@primer/octicons/build/svg/file-directory.svg'
-          })
+            src: './node_modules/@primer/octicons/build/svg/file-directory-16.svg',
+          }),
         ),
         h('input', {
           type: 'text',
-          placeholder: t('Path'),
+          placeholder: t(
+            'Path (e.g., /path/to/engine or C:\\path\\to\\engine.exe)',
+          ),
           value: path || '',
           name: 'path',
-          onChange: this.handleChange
-        })
+          onChange: this.handleChange,
+        }),
       ),
       h(
         'p',
         {},
         h('input', {
           type: 'text',
-          placeholder: t('No arguments'),
+          placeholder: t(
+            'Optional arguments (e.g., -param1 value1 -param2 value2)',
+          ),
           value: args || '',
           name: 'args',
-          onChange: this.handleChange
-        })
+          onChange: this.handleChange,
+        }),
       ),
       h(
         'p',
@@ -778,9 +803,9 @@ class EngineItem extends Component {
           placeholder: t('Initial commands (;-separated)'),
           value: commands || '',
           name: 'commands',
-          onChange: this.handleChange
-        })
-      )
+          onChange: this.handleChange,
+        }),
+      ),
     )
   }
 }
@@ -803,7 +828,7 @@ class EnginesTab extends Component {
       setting.set('engines.list', engines)
     }
 
-    this.handleAddButtonClick = evt => {
+    this.handleAddButtonClick = (evt) => {
       evt.preventDefault()
 
       let engines = [{name: '', path: '', args: ''}, ...this.props.engines]
@@ -818,7 +843,7 @@ class EnginesTab extends Component {
   render({engines}) {
     return h(
       'div',
-      {ref: el => (this.element = el), class: 'engines'},
+      {ref: (el) => (this.element = el), class: 'engines'},
       h(
         'div',
         {class: 'gtpconsolelog'},
@@ -827,17 +852,17 @@ class EnginesTab extends Component {
           {},
           h(PreferencesItem, {
             id: 'gtp.console_log_enabled',
-            text: t('Enable GTP logging to directory:')
+            text: t('Enable GTP logging to directory:'),
           }),
 
           h(PathInputItem, {
             id: 'gtp.console_log_path',
-            chooseDirectory: true
+            chooseDirectory: true,
           }),
 
           h(PreferencesItem, {
             id: 'engines.auto_connect',
-            text: t('Automatically connect engines on startup')
+            text: t('Automatically connect engines on startup'),
           }),
 
           h(PreferencesItem, {
@@ -847,10 +872,10 @@ class EnginesTab extends Component {
             options: [
               {value: 'all', label: t('Connect all engines')},
               {value: 'first', label: t('Connect only first engine')},
-              {value: 'last_used', label: t('Connect last used engine')}
-            ]
-          })
-        )
+              {value: 'last_used', label: t('Connect last used engine')},
+            ],
+          }),
+        ),
       ),
       h(
         'div',
@@ -867,10 +892,10 @@ class EnginesTab extends Component {
               commands,
 
               onChange: this.handleItemChange,
-              onRemove: this.handleItemRemove
-            })
-          )
-        )
+              onRemove: this.handleItemRemove,
+            }),
+          ),
+        ),
       ),
 
       h(
@@ -879,9 +904,9 @@ class EnginesTab extends Component {
         h(
           'button',
           {type: 'button', onClick: this.handleAddButtonClick},
-          t('Add')
-        )
-      )
+          t('Add'),
+        ),
+      ),
     )
   }
 }
@@ -890,14 +915,14 @@ export default class PreferencesDrawer extends Component {
   constructor() {
     super()
 
-    this.handleCloseButtonClick = evt => {
+    this.handleCloseButtonClick = (evt) => {
       evt.preventDefault()
       sabaki.closeDrawer()
     }
 
-    this.handleTabClick = evt => {
+    this.handleTabClick = (evt) => {
       let tabs = ['general', 'themes', 'engines']
-      let tab = tabs.find(x => evt.currentTarget.classList.contains(x))
+      let tab = tabs.find((x) => evt.currentTarget.classList.contains(x))
 
       sabaki.setState({preferencesTab: tab})
     }
@@ -944,7 +969,7 @@ export default class PreferencesDrawer extends Component {
       Drawer,
       {
         type: 'preferences',
-        show
+        show,
       },
 
       h(
@@ -954,29 +979,29 @@ export default class PreferencesDrawer extends Component {
           'li',
           {
             class: classNames({general: true, current: tab === 'general'}),
-            onClick: this.handleTabClick
+            onClick: this.handleTabClick,
           },
 
-          h('a', {href: '#'}, t('General'))
+          h('a', {href: '#'}, t('General')),
         ),
         h(
           'li',
           {
             class: classNames({themes: true, current: tab === 'themes'}),
-            onClick: this.handleTabClick
+            onClick: this.handleTabClick,
           },
 
-          h('a', {href: '#'}, t('Themes'))
+          h('a', {href: '#'}, t('Themes')),
         ),
         h(
           'li',
           {
             class: classNames({engines: true, current: tab === 'engines'}),
-            onClick: this.handleTabClick
+            onClick: this.handleTabClick,
           },
 
-          h('a', {href: '#'}, t('Engines'))
-        )
+          h('a', {href: '#'}, t('Engines')),
+        ),
       ),
 
       h(
@@ -992,10 +1017,10 @@ export default class PreferencesDrawer extends Component {
           h(
             'button',
             {type: 'button', onClick: this.handleCloseButtonClick},
-            t('Close')
-          )
-        )
-      )
+            t('Close'),
+          ),
+        ),
+      ),
     )
   }
 }

@@ -10,11 +10,11 @@ export default class FindBar extends Component {
   constructor() {
     super()
 
-    this.handleChange = evt => {
+    this.handleChange = (evt) => {
       sabaki.setState({findText: evt.currentTarget.value})
     }
 
-    this.handleButtonClick = evt => {
+    this.handleButtonClick = (evt) => {
       evt.preventDefault()
 
       let step = evt.currentTarget.classList.contains('next') ? 1 : -1
@@ -43,32 +43,32 @@ export default class FindBar extends Component {
         'form',
         {},
         h('input', {
-          ref: el => (this.inputElement = el),
+          ref: (el) => (this.inputElement = el),
           type: 'text',
           placeholder: t('Find'),
           value: findText,
-          onInput: this.handleChange
+          onInput: this.handleChange,
         }),
 
         h(
           'button',
           {class: 'next', onClick: this.handleButtonClick},
           h('img', {
-            src: './node_modules/@primer/octicons/build/svg/chevron-down.svg',
+            src: './node_modules/@primer/octicons/build/svg/chevron-down-16.svg',
             height: 20,
-            alt: t('Next')
-          })
+            alt: t('Next'),
+          }),
         ),
         h(
           'button',
           {class: 'prev', onClick: this.handleButtonClick},
           h('img', {
-            src: './node_modules/@primer/octicons/build/svg/chevron-up.svg',
+            src: './node_modules/@primer/octicons/build/svg/chevron-up-16.svg',
             height: 20,
-            alt: t('Previous')
-          })
-        )
-      )
+            alt: t('Previous'),
+          }),
+        ),
+      ),
     )
   }
 }

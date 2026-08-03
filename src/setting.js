@@ -40,7 +40,7 @@ for (let dir of [
   (exports.userDataDirectory = portableDir
     ? path.join(portableDir, 'Sabaki')
     : app.getPath('userData')),
-  (exports.themesDirectory = path.join(exports.userDataDirectory, 'themes'))
+  (exports.themesDirectory = path.join(exports.userDataDirectory, 'themes')),
 ]) {
   try {
     fs.mkdirSync(dir)
@@ -53,7 +53,7 @@ exports.stylesPath = path.join(exports.userDataDirectory, 'styles.css')
 if (!fs.existsSync(exports.stylesPath)) {
   fs.writeFileSync(
     exports.stylesPath,
-    `/* This stylesheet is loaded when ${app.name} starts up. */`
+    `/* This stylesheet is loaded when ${app.name} starts up. */`,
   )
 }
 
@@ -82,6 +82,7 @@ let defaults = {
   'autoscroll.min_interval': 50,
   'board.analysis_interval': 50,
   'board.analysis_type': 'winrate',
+  'board.analysis_value_type': 'absolute',
   'board.show_analysis': true,
   'board.variation_replay_mode': 'move_by_move',
   'board.variation_replay_interval': 500,
@@ -131,7 +132,7 @@ let defaults = {
     'TM',
     'US',
     'WR',
-    'WT'
+    'WT',
   ],
   'edit.flatten_inherit_root_props': [
     'BR',
@@ -146,7 +147,7 @@ let defaults = {
     'SO',
     'SZ',
     'WT',
-    'WR'
+    'WR',
   ],
   'edit.history_batch_interval': 500,
   'edit.max_history_count': 1000,
@@ -160,7 +161,7 @@ let defaults = {
   'engines.gemove_analyze_commands': [
     'genmove_analyze',
     'kata-genmove_analyze',
-    'lz-genmove_analyze'
+    'lz-genmove_analyze',
   ],
   'file.show_reload_warning': true,
   'find.delay': 100,
@@ -197,11 +198,11 @@ let defaults = {
     'view.winrategraph_minheight',
     'view.winrategraph_blunderthreshold',
     'view.winrategraph_height',
-    'app.lang'
+    'app.lang',
   ],
   'setting.overwrite.v0.50.1': [
     'engines.analyze_commands',
-    'engines.gemove_analyze_commands'
+    'engines.gemove_analyze_commands',
   ],
   'sgf.comment_properties': [
     'C',
@@ -213,7 +214,7 @@ let defaults = {
     'BM',
     'TE',
     'DO',
-    'IT'
+    'IT',
   ],
   'sgf.format_code': false,
   'sound.capture_delay_max': 500,
@@ -229,7 +230,8 @@ let defaults = {
   'view.fuzzy_stone_placement': true,
   'view.leftsidebar_width': 250,
   'view.leftsidebar_minwidth': 100,
-  'view.peerlist_height': 60,
+  'view.move_numbers_type': 'start',
+  'view.peerlist_height': 130,
   'view.peerlist_minheight': 58,
   'view.properties_height': 50,
   'view.properties_minheight': 20,
@@ -246,6 +248,7 @@ let defaults = {
   'view.sidebar_width': 200,
   'view.sidebar_minwidth': 100,
   'view.winrategraph_blunderthreshold': 5,
+  'view.winrategraph_blunderthreshold_scorelead': 2,
   'view.winrategraph_height': 90,
   'view.winrategraph_minheight': 30,
   'view.winrategraph_maxheight': 250,
@@ -255,7 +258,7 @@ let defaults = {
   'window.minheight': 440,
   'window.minwidth': 526,
   'window.width': 564,
-  'window.maximized': false
+  'window.maximized': false,
 }
 
 let eventEmitters = {}
@@ -273,16 +276,16 @@ exports.events = {
     let windows = BrowserWindow.getAllWindows()
 
     for (let id in eventEmitters) {
-      if (!windows.some(window => window.id.toString() === id)) {
+      if (!windows.some((window) => window.id.toString() === id)) {
         delete eventEmitters[id]
       } else {
         eventEmitters[id].emit(event, evt)
       }
     }
-  }
+  },
 }
 
-exports.load = function() {
+exports.load = function () {
   try {
     settings = JSON.parse(fs.readFileSync(exports.settingsPath, 'utf8'))
   } catch (err) {
@@ -321,22 +324,24 @@ exports.load = function() {
   return exports.save()
 }
 
-exports.loadThemes = function() {
-  let packagePath = filename =>
+exports.loadThemes = function () {
+  let packagePath = (filename) =>
     path.join(exports.themesDirectory, filename, 'package.json')
-  let friendlyName = name =>
+  let friendlyName = (name) =>
     name
       .split('-')
-      .map(x => (x === '' ? x : x[0].toUpperCase() + x.slice(1).toLowerCase()))
+      .map((x) =>
+        x === '' ? x : x[0].toUpperCase() + x.slice(1).toLowerCase(),
+      )
       .join(' ')
 
   themesDict = fs
     .readdirSync(exports.themesDirectory)
-    .map(x => {
+    .map((x) => {
       try {
         return Object.assign({}, require(packagePath(x)), {
           id: x,
-          path: path.join(packagePath(x), '..')
+          path: path.join(packagePath(x), '..'),
         })
       } catch (err) {
         return null
@@ -351,7 +356,7 @@ exports.loadThemes = function() {
     }, {})
 }
 
-exports.save = function() {
+exports.save = function () {
   let keys = Object.keys(settings).sort()
 
   fs.writeFileSync(
@@ -359,27 +364,31 @@ exports.save = function() {
     JSON.stringify(
       keys.reduce((acc, key) => ((acc[key] = settings[key]), acc), {}),
       null,
-      '  '
-    )
+      '  ',
+    ),
   )
 
   return exports
 }
 
-exports.get = function(key) {
+exports.get = function (key) {
   if (key in settings) return settings[key]
   if (key in defaults) return defaults[key]
   return null
 }
 
-exports.set = function(key, value) {
+exports.set = function (key, value) {
   settings[key] = value
   exports.save()
   exports.events.emit('change', {key, value})
   return exports
 }
 
-exports.getThemes = function() {
+exports.getAll = function () {
+  return Object.assign({}, defaults, settings)
+}
+
+exports.getThemes = function () {
   if (themesDict == null) exports.loadThemes()
   return themesDict
 }

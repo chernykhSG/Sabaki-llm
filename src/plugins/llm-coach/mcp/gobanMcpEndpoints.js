@@ -1,4 +1,3 @@
-import * as remote from '@electron/remote'
 import {BoundedGoban} from '@sabaki/shudan'
 import sgf from '@sabaki/sgf'
 

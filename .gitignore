@@ -1,6 +1,7 @@
+/engines/
+
 dist/
 i18n/
-engines/
 node_modules/
 docs/
 
@@ -11,7 +12,7 @@ bundle.js.LICENSE.txt
 *.vbs
 *.pdf
 
-# 忽略未跟踪的模块文件
+# Игнорируем неотслеживаемые файлы модулей
 src/modules/fileManager.js
 src/modules/historyManager.js
 src/modules/menuManager.js
@@ -27,3 +28,12 @@ xiuxing.sgf
 node_modules_store_preact*.*
 *.mjs*
 *.log
+
+playwright-report/
+test-results/
+
+# Engine integration test cache (downloaded nets, gtp configs)
+.engine-cache/
+
+# GTP communication logs written at runtime when engines are attached
+gtp_logs/

@@ -1,13 +1,15 @@
-import * as remote from '@electron/remote'
 import {h, Component} from 'preact'
 
 import SplitContainer from './helpers/SplitContainer.js'
 import GtpConsole from './sidebars/GtpConsole.js'
 import {EnginePeerList} from './sidebars/PeerList.js'
 import GolaxyLivePanel from '../plugins/llm-coach/golaxy/GolaxyLivePanel.js'
+import i18n from '../i18n.js'
 
-const setting = remote.require('./setting')
-const i18n = remote.require('./i18n')
+const setting = {
+  get: key => window.sabaki.setting.get(key),
+  set: (key, value) => window.sabaki.setting.set(key, value)
+}
 const peerListMinHeight = setting.get('view.peerlist_minheight')
 
 export default class LeftSidebar extends Component {
@@ -35,12 +37,12 @@ export default class LeftSidebar extends Component {
     this.handleCommandControlStep = ({step}) => {
       let {attachedEngineSyncers} = this.props
       let engineIndex = attachedEngineSyncers.findIndex(
-        syncer => syncer.id === this.state.selectedEngineSyncerId
+        (syncer) => syncer.id === this.state.selectedEngineSyncerId,
       )
 
       let stepEngineIndex = Math.min(
         Math.max(0, engineIndex + step),
-        attachedEngineSyncers.length - 1
+        attachedEngineSyncers.length - 1,
       )
       let stepEngine = this.props.attachedEngineSyncers[stepEngineIndex]
 
@@ -61,7 +63,7 @@ export default class LeftSidebar extends Component {
 
     this.handleCommandSubmit = ({command}) => {
       let syncer = this.props.attachedEngineSyncers.find(
-        syncer => syncer.id === this.state.selectedEngineSyncerId
+        (syncer) => syncer.id === this.state.selectedEngineSyncerId,
       )
 
       if (syncer != null) {
@@ -85,15 +87,15 @@ export default class LeftSidebar extends Component {
       whiteEngineSyncerId,
       engineGameOngoing,
       showLeftSidebar,
-      consoleLog
+      consoleLog,
     },
-    {peerListHeight, selectedEngineSyncerId, activeTab}
+    {peerListHeight, selectedEngineSyncerId, activeTab},
   ) {
     return h(
       'section',
       {
-        ref: el => (this.element = el),
-        id: 'leftsidebar'
+        ref: (el) => (this.element = el),
+        id: 'leftsidebar',
       },
       [
         h('div', {className: 'tab-container'}, [
@@ -129,34 +131,34 @@ export default class LeftSidebar extends Component {
                 selectedEngineSyncerId,
                 engineGameOngoing,
 
-                onEngineSelect: this.handleEngineSelect
+                onEngineSelect: this.handleEngineSelect,
               }),
 
               mainContent: h(GtpConsole, {
                 show: showLeftSidebar,
                 consoleLog,
                 attachedEngine: attachedEngineSyncers
-                  .map(syncer =>
+                  .map((syncer) =>
                     syncer.id !== selectedEngineSyncerId
                       ? null
                       : {
                           name: syncer.engine.name,
                           get commands() {
                             return syncer.commands
-                          }
-                        }
+                          },
+                        },
                   )
-                  .find(x => x != null),
+                  .find((x) => x != null),
 
                 onSubmit: this.handleCommandSubmit,
-                onControlStep: this.handleCommandControlStep
+                onControlStep: this.handleCommandControlStep,
               }),
 
               onChange: this.handlePeerListHeightChange,
-              onFinish: this.handlePeerListHeightFinish
+              onFinish: this.handlePeerListHeightFinish,
             })
-          : h(GolaxyLivePanel, {})
-      ]
+          : h(GolaxyLivePanel, {}),
+      ],
     )
   }
 }
@@ -165,7 +167,7 @@ LeftSidebar.getDerivedStateFromProps = (props, state) => {
   if (
     props.attachedEngineSyncers.length > 0 &&
     props.attachedEngineSyncers.find(
-      syncer => syncer.id === state.selectedEngineSyncerId
+      (syncer) => syncer.id === state.selectedEngineSyncerId,
     ) == null
   ) {
     return {selectedEngineSyncerId: props.attachedEngineSyncers[0].id}

@@ -2,19 +2,21 @@ const {
   app,
   shell,
   dialog,
+  clipboard,
   ipcMain,
   nativeImage,
   BrowserWindow,
-  Menu
+  Menu,
 } = require('electron')
 const {resolve} = require('path')
 const i18n = require('./i18n')
 const setting = require('./setting')
 const updater = require('./updater')
-require('@electron/remote/main').initialize()
+const {getOpenFileFromArgv} = require('./argv')
 
 let windows = []
 let openfile = null
+let isQuitting = false
 
 function newWindow(path) {
   let window = new BrowserWindow({
@@ -31,24 +33,22 @@ function newWindow(path) {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      enableRemoteModule: true,
+      sandbox: false,
+      preload: resolve(__dirname, 'preload.js'),
       zoomFactor: setting.get('app.zoom_factor'),
       // Enable web security but allow local file access for WebAssembly
+      // (нужно для onnxruntime-web/@xenova/transformers/chromadb, грузящих
+      // модели и wasm с file://)
       webSecurity: false,
-      // Enable experimental features
       experimentalFeatures: true,
-      // Enable native window open
       nativeWindowOpen: true,
-      // Allow running insecure content (for development)
       allowRunningInsecureContent: true
     }
   })
 
-  // 为当前窗口启用 @electron/remote
-  require('@electron/remote/main').enable(window.webContents)
-
   windows.push(window)
   buildMenu()
+  setupWindowEventForwarding(window)
 
   window.once('ready-to-show', () => {
     window.show()
@@ -67,12 +67,6 @@ function newWindow(path) {
 
   window.on('unmaximize', () => {
     setting.set('window.maximized', false)
-  })
-
-  // Handle close event to allow for save confirmation
-  window.on('close', evt => {
-    evt.preventDefault()
-    window.webContents.send('can-close-window')
   })
 
   // Handle closed event (after window is actually closed)
@@ -102,8 +96,8 @@ function buildMenu(props = {}) {
 
   // Process menu items
 
-  let processMenu = items => {
-    return items.map(item => {
+  let processMenu = (items) => {
+    return items.map((item) => {
       if ('click' in item) {
         item.click = () => {
           let window = BrowserWindow.getFocusedWindow()
@@ -119,8 +113,9 @@ function buildMenu(props = {}) {
         item.click = () =>
           ({
             newWindow,
-            checkForUpdates: () => checkForUpdates({showFailDialogs: true})
-          }[key]())
+            checkForUpdates: () => checkForUpdates({showFailDialogs: true}),
+            quit: () => app.quit(),
+          })[key]()
 
         delete item.clickMain
       }
@@ -140,8 +135,8 @@ function buildMenu(props = {}) {
   let dockMenu = Menu.buildFromTemplate([
     {
       label: i18n.t('menu.file', 'New &Window'),
-      click: () => newWindow()
-    }
+      click: () => newWindow(),
+    },
   ])
 
   if (process.platform === 'darwin') {
@@ -160,20 +155,20 @@ async function checkForUpdates({showFailDialogs = false} = {}) {
           type: 'info',
           buttons: [t('Download Update'), t('View Changelog'), t('Not Now')],
           title: app.name,
-          message: t(p => `${p.appName} v${p.version} is available now.`, {
+          message: t((p) => `${p.appName} v${p.version} is available now.`, {
             appName: app.name,
-            version: info.latestVersion
+            version: info.latestVersion,
           }),
           noLink: true,
-          cancelId: 2
+          cancelId: 2,
         },
-        response => {
+        (response) => {
           if (response === 2) return
 
           shell.openExternal(
-            response === 0 ? info.downloadUrl || info.url : info.url
+            response === 0 ? info.downloadUrl || info.url : info.url,
           )
-        }
+        },
       )
     } else if (showFailDialogs) {
       dialog.showMessageBox(
@@ -181,12 +176,15 @@ async function checkForUpdates({showFailDialogs = false} = {}) {
           type: 'info',
           buttons: [t('OK')],
           title: t('No updates available'),
-          message: t(p => `${p.appName} v${p.version} is the latest version.`, {
-            appName: app.name,
-            version: app.getVersion()
-          })
+          message: t(
+            (p) => `${p.appName} v${p.version} is the latest version.`,
+            {
+              appName: app.name,
+              version: app.getVersion(),
+            },
+          ),
         },
-        () => {}
+        () => {},
       )
     }
   } catch (err) {
@@ -195,21 +193,195 @@ async function checkForUpdates({showFailDialogs = false} = {}) {
         type: 'warning',
         buttons: [t('OK')],
         title: app.name,
-        message: t('An error occurred while checking for updates.')
+        message: t('An error occurred while checking for updates.'),
       })
     }
   }
 }
 
-async function main() {
-  app.allowRendererProcessReuse = true
+function setupWindowEventForwarding(win) {
+  const events = ['focus', 'blur', 'maximize', 'unmaximize', 'resize']
+  events.forEach((event) => {
+    win.on(event, () => {
+      win.webContents.send(`window:${event}`)
+    })
+  })
+}
 
+function setupIpcHandlers() {
+  // App info
+  ipcMain.handle('app:getName', () => app.name)
+  ipcMain.handle('app:getVersion', () => app.getVersion())
+  ipcMain.handle('app:quit', () => app.quit())
+  // A renderer aborts an in-progress quit (e.g. the user cancelled the
+  // unsaved-changes prompt) so a later ordinary window close doesn't quit the
+  // app on macOS.
+  ipcMain.handle('app:cancelQuit', () => {
+    isQuitting = false
+  })
+
+  // Window operations
+  ipcMain.handle('window:setFullScreen', (e, f) => {
+    BrowserWindow.fromWebContents(e.sender)?.setFullScreen(f)
+  })
+  ipcMain.handle('window:isFullScreen', (e) => {
+    return BrowserWindow.fromWebContents(e.sender)?.isFullScreen() ?? false
+  })
+  ipcMain.handle('window:isMaximized', (e) => {
+    return BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false
+  })
+  ipcMain.handle('window:isMinimized', (e) => {
+    return BrowserWindow.fromWebContents(e.sender)?.isMinimized() ?? false
+  })
+  ipcMain.handle('window:setMenuBarVisibility', (e, v) => {
+    BrowserWindow.fromWebContents(e.sender)?.setMenuBarVisibility(v)
+  })
+  ipcMain.handle('window:setAutoHideMenuBar', (e, v) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win) win.autoHideMenuBar = v
+  })
+  ipcMain.handle('window:getContentSize', (e) => {
+    return BrowserWindow.fromWebContents(e.sender)?.getContentSize() ?? [0, 0]
+  })
+  ipcMain.handle('window:setContentSize', (e, w, h) => {
+    BrowserWindow.fromWebContents(e.sender)?.setContentSize(
+      Math.floor(w),
+      Math.floor(h),
+    )
+  })
+  ipcMain.handle('window:setProgressBar', (e, p) => {
+    BrowserWindow.fromWebContents(e.sender)?.setProgressBar(p)
+  })
+  ipcMain.handle('window:close', (e) => {
+    BrowserWindow.fromWebContents(e.sender)?.close()
+  })
+  ipcMain.handle('window:getId', (e) => {
+    return BrowserWindow.fromWebContents(e.sender)?.id ?? null
+  })
+
+  // WebContents operations
+  ipcMain.handle('webContents:setZoomFactor', (e, f) =>
+    e.sender.setZoomFactor(f),
+  )
+  ipcMain.handle('webContents:getZoomFactor', (e) => e.sender.getZoomFactor())
+  ipcMain.handle('webContents:setAudioMuted', (e, m) =>
+    e.sender.setAudioMuted(m),
+  )
+  ipcMain.handle('webContents:undo', (e) => e.sender.undo())
+  ipcMain.handle('webContents:redo', (e) => e.sender.redo())
+  ipcMain.handle('webContents:toggleDevTools', (e) => e.sender.toggleDevTools())
+  ipcMain.handle('webContents:getOSProcessId', (e) => e.sender.getOSProcessId())
+
+  // Dialogs
+  ipcMain.handle('dialog:showMessageBox', async (e, opts) => {
+    return dialog.showMessageBox(BrowserWindow.fromWebContents(e.sender), opts)
+  })
+  ipcMain.handle('dialog:showOpenDialog', async (e, opts) => {
+    return dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), opts)
+  })
+  ipcMain.handle('dialog:showSaveDialog', async (e, opts) => {
+    return dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), opts)
+  })
+
+  // Menu popup
+  ipcMain.handle('menu:popup', (e, template, x, y) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const zoomFactor = setting.get('app.zoom_factor')
+
+    // Build menu from template
+    // Click handlers are stored in renderer with IDs - we just send the ID back
+    const buildMenuFromTemplate = (items) => {
+      return items.map((item) => {
+        if (!item) return item
+        const newItem = {...item}
+        // Items with IDs have click handlers stored in the renderer
+        if (item.id && item.id.startsWith('popup-menu-')) {
+          newItem.click = () => {
+            win.webContents.send('menu-click', item.id)
+          }
+        }
+        if (item.submenu) {
+          newItem.submenu = buildMenuFromTemplate(item.submenu)
+        }
+        return newItem
+      })
+    }
+
+    Menu.buildFromTemplate(buildMenuFromTemplate(template)).popup({
+      window: win,
+      x: x != null ? Math.round(x * zoomFactor) : undefined,
+      y: y != null ? Math.round(y * zoomFactor) : undefined,
+    })
+  })
+
+  // Shell
+  ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url))
+  ipcMain.handle('shell:showItemInFolder', (_, p) => shell.showItemInFolder(p))
+
+  // Clipboard
+  ipcMain.handle('clipboard:readText', () => clipboard.readText())
+  ipcMain.handle('clipboard:writeText', (_, t) => clipboard.writeText(t))
+
+  // Settings - for renderer access
+  ipcMain.handle('setting:set', (e, key, value) => {
+    setting.set(key, value)
+    // Notify all windows of the change
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('setting:change', {key, value})
+    })
+    return true
+  })
+
+  // Synchronous handler for initial settings load (used by preload)
+  ipcMain.on('setting:getAllSync', (e) => {
+    try {
+      e.returnValue = setting.getAll()
+    } catch (err) {
+      console.error('[main] Error in setting:getAllSync:', err)
+      e.returnValue = {}
+    }
+  })
+
+  ipcMain.handle('setting:loadThemes', () => {
+    setting.loadThemes()
+    return setting.getThemes()
+  })
+  ipcMain.on('setting:getPathsSync', (e) => {
+    try {
+      e.returnValue = {
+        themesDirectory: setting.themesDirectory,
+        stylesPath: setting.stylesPath,
+        userDataDirectory: setting.userDataDirectory,
+        themes: setting.getThemes(),
+      }
+    } catch (err) {
+      console.error('[main] Error in setting:getPathsSync:', err)
+      e.returnValue = {
+        themesDirectory: '',
+        stylesPath: '',
+        userDataDirectory: '',
+        themes: {},
+      }
+    }
+  })
+}
+
+async function main() {
   if (!setting.get('app.enable_hardware_acceleration')) {
     app.disableHardwareAcceleration()
   }
 
+  // Track an explicit quit request (Cmd+Q / Quit menu) so that on macOS the app
+  // actually terminates once its windows close. The renderer's async
+  // beforeunload cancels the first close to run the save prompt, which aborts
+  // app.quit(); without this flag, window-all-closed then keeps the app alive,
+  // so the window vanishes but the process lingers (issue #157).
+  app.on('before-quit', () => {
+    isQuitting = true
+  })
+
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
+    if (process.platform !== 'darwin' || isQuitting) {
       app.quit()
     } else {
       buildMenu({disableAll: true})
@@ -230,55 +402,37 @@ async function main() {
     }
   })
 
-  process.on('uncaughtException', err => {
+  process.on('uncaughtException', (err) => {
     let t = i18n.context('exception')
 
     dialog.showErrorBox(
-      t(p => `${p.appName} v${p.version}`, {
+      t((p) => `${p.appName} v${p.version}`, {
         appName: app.name,
-        version: app.getVersion()
+        version: app.getVersion(),
       }),
       t(
-        p =>
+        (p) =>
           [
             `Something weird happened. ${p.appName} will shut itself down.`,
-            `If possible, please report this on ${p.appName}’s repository on GitHub.`
+            `If possible, please report this on ${p.appName}’s repository on GitHub.`,
           ].join(' '),
         {
-          appName: app.name
-        }
+          appName: app.name,
+        },
       ) +
         '\n\n' +
-        err.stack
+        err.stack,
     )
 
     process.exit(1)
   })
 
-  const fs = require('fs')
-
   await app.whenReady()
 
-  if (!openfile && process.argv.length >= 2) {
-    if (!['electron.exe', 'electron'].some(x => process.argv[0].endsWith(x))) {
-      const candidatePath = process.argv[2]
-      // 检查文件是否存在，只有存在时才设置openfile
-      if (
-        fs.existsSync(candidatePath) &&
-        fs.lstatSync(candidatePath).isFile()
-      ) {
-        openfile = candidatePath
-      }
-    } else if (process.argv.length >= 3) {
-      const candidatePath = process.argv[2]
-      // 检查文件是否存在，只有存在时才设置openfile
-      if (
-        fs.existsSync(candidatePath) &&
-        fs.lstatSync(candidatePath).isFile()
-      ) {
-        openfile = candidatePath
-      }
-    }
+  setupIpcHandlers()
+
+  if (!openfile) {
+    openfile = getOpenFileFromArgv(process.argv)
   }
 
   newWindow(openfile)
@@ -286,7 +440,7 @@ async function main() {
   if (setting.get('app.startup_check_updates')) {
     setTimeout(
       () => checkForUpdates(),
-      setting.get('app.startup_check_updates_delay')
+      setting.get('app.startup_check_updates_delay'),
     )
   }
 

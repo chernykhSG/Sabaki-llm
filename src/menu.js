@@ -1,34 +1,41 @@
 const nativeRequire = eval('require')
 
 const {shell, clipboard} = require('electron')
-var remote = null
-try {
-  remote = require('@electron/remote')
-} catch (e) {}
-const isRenderer = remote != null
-const {app} = isRenderer ? remote : require('electron')
+const isRenderer = typeof window !== 'undefined' && window.sabaki != null
+const {app} = isRenderer
+  ? {app: {name: 'Sabaki', getVersion: () => ''}}
+  : require('electron')
 
 const i18n = require('./i18n')
 const sabaki = isRenderer ? require('./modules/sabaki').default : null
 const dialog = isRenderer ? require('./modules/dialog') : null
 const setting = isRenderer
-  ? remote.require('./setting')
+  ? {
+      get: (key) => window.sabaki.setting.get(key),
+      set: (key, value) => {
+        window.sabaki.setting.set(key, value)
+        return setting
+      },
+    }
   : nativeRequire('./setting')
 
-exports.get = function(props = {}) {
-  let toggleSetting = key => setting.set(key, !setting.get(key))
-  let selectTool = tool => (
-    sabaki.setMode('edit'), sabaki.setState({selectedTool: tool})
+exports.get = function (props = {}) {
+  let toggleSetting = (key) => setting.set(key, !setting.get(key))
+  let selectTool = (tool) => (
+    sabaki.setMode('edit'),
+    sabaki.setState({selectedTool: tool})
   )
 
   let {
     disableAll,
     disableGameLoading,
     analysisType,
+    analysisValueType,
     showAnalysis,
     showCoordinates,
     coordinatesType,
     showMoveNumbers,
+    moveNumbersType,
     showMoveColorization,
     showNextMoves,
     showSiblings,
@@ -36,7 +43,7 @@ exports.get = function(props = {}) {
     showGameGraph,
     showCommentBox,
     showLeftSidebar,
-    engineGameOngoing
+    engineGameOngoing,
   } = props
 
   let data = [
@@ -48,30 +55,30 @@ exports.get = function(props = {}) {
           label: i18n.t('menu.file', '&New'),
           accelerator: 'CmdOrCtrl+N',
           enabled: !disableGameLoading,
-          click: () => sabaki.newFile({playSound: true, showInfo: true})
+          click: () => sabaki.newFile({playSound: true, showInfo: true}),
         },
         {
           label: i18n.t('menu.file', 'New &Window'),
           accelerator: 'CmdOrCtrl+Shift+N',
           clickMain: 'newWindow',
-          neverDisable: true
+          neverDisable: true,
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.file', '&Open…'),
           accelerator: 'CmdOrCtrl+O',
           enabled: !disableGameLoading,
-          click: () => sabaki.loadFile()
+          click: () => sabaki.loadFile(),
         },
         {
           label: i18n.t('menu.file', '&Save'),
           accelerator: 'CmdOrCtrl+S',
-          click: () => sabaki.saveFile(sabaki.state.representedFilename)
+          click: () => sabaki.saveFile(sabaki.state.representedFilename),
         },
         {
           label: i18n.t('menu.file', 'Sa&ve As…'),
           accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => sabaki.saveFile()
+          click: () => sabaki.saveFile(),
         },
         {type: 'separator'},
         {
@@ -80,37 +87,37 @@ exports.get = function(props = {}) {
             {
               label: i18n.t('menu.file', '&Load SGF'),
               enabled: !disableGameLoading,
-              click: () => sabaki.loadContent(clipboard.readText(), 'sgf')
+              click: () => sabaki.loadContent(clipboard.readText(), 'sgf'),
             },
             {
               label: i18n.t('menu.file', '&Copy SGF'),
-              click: () => clipboard.writeText(sabaki.getSGF())
+              click: () => clipboard.writeText(sabaki.getSGF()),
             },
             {
               label: i18n.t('menu.file', 'Copy &ASCII Diagram'),
-              click: () => clipboard.writeText(sabaki.getBoardAscii())
-            }
-          ]
+              click: () => clipboard.writeText(sabaki.getBoardAscii()),
+            },
+          ],
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.file', 'Game &Info'),
           accelerator: 'CmdOrCtrl+I',
-          click: () => sabaki.openDrawer('info')
+          click: () => sabaki.openDrawer('info'),
         },
         {
           label: i18n.t('menu.file', '&Manage Games…'),
           accelerator: 'CmdOrCtrl+Shift+M',
           enabled: !disableGameLoading,
-          click: () => sabaki.openDrawer('gamechooser')
+          click: () => sabaki.openDrawer('gamechooser'),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.file', '&Quit'),
           accelerator: 'CmdOrCtrl+Q',
-          click: () => app.quit()
-        }
-      ]
+          clickMain: 'quit',
+        },
+      ],
     },
     {
       id: 'play',
@@ -118,11 +125,12 @@ exports.get = function(props = {}) {
       submenu: [
         {
           label: i18n.t('menu.play', '&Toggle Player'),
+          accelerator: 'CmdOrCtrl+Shift+P',
           click: () =>
             sabaki.setPlayer(
               sabaki.state.treePosition,
-              -sabaki.getPlayer(sabaki.state.treePosition)
-            )
+              -sabaki.getPlayer(sabaki.state.treePosition),
+            ),
         },
         {type: 'separator'},
         {
@@ -130,21 +138,21 @@ exports.get = function(props = {}) {
           accelerator: 'CmdOrCtrl+L',
           click: async () => {
             let value = await dialog.showInputBox(
-              i18n.t('menu.play', 'Enter a coordinate to select a point')
+              i18n.t('menu.play', 'Enter a coordinate to select a point'),
             )
             if (value == null) return
 
             sabaki.clickVertex(value)
-          }
+          },
         },
         {
           label: i18n.t('menu.play', '&Pass'),
           accelerator: 'CmdOrCtrl+P',
-          click: () => sabaki.makeMove([-1, -1])
+          click: () => sabaki.makePass(),
         },
         {
           label: i18n.t('menu.play', 'Resig&n'),
-          click: () => sabaki.makeResign()
+          click: () => sabaki.makeResign(),
         },
         {type: 'separator'},
         {
@@ -152,16 +160,18 @@ exports.get = function(props = {}) {
           accelerator: 'CmdOrCtrl+Shift+E',
           click: () =>
             sabaki.setMode(
-              sabaki.state.mode === 'estimator' ? 'play' : 'estimator'
-            )
+              sabaki.state.mode === 'estimator' ? 'play' : 'estimator',
+            ),
         },
         {
           label: i18n.t('menu.play', 'Sco&re'),
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () =>
-            sabaki.setMode(sabaki.state.mode === 'scoring' ? 'play' : 'scoring')
-        }
-      ]
+            sabaki.setMode(
+              sabaki.state.mode === 'scoring' ? 'play' : 'scoring',
+            ),
+        },
+      ],
     },
     {
       id: 'edit',
@@ -170,20 +180,20 @@ exports.get = function(props = {}) {
         {
           label: i18n.t('menu.edit', '&Undo'),
           accelerator: 'CmdOrCtrl+Z',
-          click: () => sabaki.undo()
+          click: () => sabaki.undo(),
         },
         {
           label: i18n.t('menu.edit', 'Re&do'),
           accelerator:
             process.platform === 'win32' ? 'CmdOrCtrl+Y' : 'CmdOrCtrl+Shift+Z',
-          click: () => sabaki.redo()
+          click: () => sabaki.redo(),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.edit', 'Toggle &Edit Mode'),
           accelerator: 'CmdOrCtrl+E',
           click: () =>
-            sabaki.setMode(sabaki.state.mode === 'edit' ? 'play' : 'edit')
+            sabaki.setMode(sabaki.state.mode === 'edit' ? 'play' : 'edit'),
         },
         {
           label: i18n.t('menu.edit', '&Select Tool'),
@@ -196,81 +206,87 @@ exports.get = function(props = {}) {
                   sabaki.state.mode !== 'edit' ||
                     sabaki.state.selectedTool !== 'stone_1'
                     ? 'stone_1'
-                    : 'stone_-1'
-                )
+                    : 'stone_-1',
+                ),
             },
             {
               label: i18n.t('menu.edit', '&Cross Tool'),
               accelerator: 'CmdOrCtrl+2',
-              click: () => selectTool('cross')
+              click: () => selectTool('cross'),
             },
             {
               label: i18n.t('menu.edit', '&Triangle Tool'),
               accelerator: 'CmdOrCtrl+3',
-              click: () => selectTool('triangle')
+              click: () => selectTool('triangle'),
             },
             {
               label: i18n.t('menu.edit', 'S&quare Tool'),
               accelerator: 'CmdOrCtrl+4',
-              click: () => selectTool('square')
+              click: () => selectTool('square'),
             },
             {
               label: i18n.t('menu.edit', 'C&ircle Tool'),
               accelerator: 'CmdOrCtrl+5',
-              click: () => selectTool('circle')
+              click: () => selectTool('circle'),
             },
             {
               label: i18n.t('menu.edit', '&Line Tool'),
               accelerator: 'CmdOrCtrl+6',
-              click: () => selectTool('line')
+              click: () => selectTool('line'),
             },
             {
               label: i18n.t('menu.edit', '&Arrow Tool'),
               accelerator: 'CmdOrCtrl+7',
-              click: () => selectTool('arrow')
+              click: () => selectTool('arrow'),
             },
             {
               label: i18n.t('menu.edit', 'La&bel Tool'),
               accelerator: 'CmdOrCtrl+8',
-              click: () => selectTool('label')
+              click: () => selectTool('label'),
             },
             {
               label: i18n.t('menu.edit', '&Number Tool'),
               accelerator: 'CmdOrCtrl+9',
-              click: () => selectTool('number')
-            }
-          ]
+              click: () => selectTool('number'),
+            },
+          ],
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.edit', '&Copy Variation'),
-          click: () => sabaki.copyVariation(sabaki.state.treePosition)
+          accelerator: 'CmdOrCtrl+Alt+Shift+C',
+          click: () => sabaki.copyVariation(sabaki.state.treePosition),
         },
         {
           label: i18n.t('menu.edit', 'Cu&t Variation'),
-          click: () => sabaki.cutVariation(sabaki.state.treePosition)
+          accelerator: 'CmdOrCtrl+Alt+Shift+X',
+          click: () => sabaki.cutVariation(sabaki.state.treePosition),
         },
         {
           label: i18n.t('menu.edit', '&Paste Variation'),
-          click: () => sabaki.pasteVariation(sabaki.state.treePosition)
+          accelerator: 'CmdOrCtrl+Alt+Shift+V',
+          click: () => sabaki.pasteVariation(sabaki.state.treePosition),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.edit', 'Make Main &Variation'),
-          click: () => sabaki.makeMainVariation(sabaki.state.treePosition)
+          accelerator: 'CmdOrCtrl+Alt+Shift+Left',
+          click: () => sabaki.makeMainVariation(sabaki.state.treePosition),
         },
         {
           label: i18n.t('menu.edit', 'Shift &Left'),
-          click: () => sabaki.shiftVariation(sabaki.state.treePosition, -1)
+          accelerator: 'CmdOrCtrl+Shift+Left',
+          click: () => sabaki.shiftVariation(sabaki.state.treePosition, -1),
         },
         {
           label: i18n.t('menu.edit', 'Shift Ri&ght'),
-          click: () => sabaki.shiftVariation(sabaki.state.treePosition, 1)
+          accelerator: 'CmdOrCtrl+Shift+Right',
+          click: () => sabaki.shiftVariation(sabaki.state.treePosition, 1),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.edit', '&Flatten'),
-          click: () => sabaki.flattenVariation(sabaki.state.treePosition)
+          click: () => sabaki.flattenVariation(sabaki.state.treePosition),
         },
         {
           label: i18n.t('menu.edit', '&Remove Node'),
@@ -278,19 +294,33 @@ exports.get = function(props = {}) {
             process.platform === 'darwin'
               ? 'CmdOrCtrl+Backspace'
               : 'CmdOrCtrl+Delete',
-          click: () => sabaki.removeNode(sabaki.state.treePosition)
+          click: () => sabaki.removeNode(sabaki.state.treePosition),
         },
         {
           label: i18n.t('menu.edit', 'Remove &Other Variations'),
-          click: () => sabaki.removeOtherVariations(sabaki.state.treePosition)
+          accelerator: 'CmdOrCtrl+Shift+Backspace',
+          click: () => sabaki.removeOtherVariations(sabaki.state.treePosition),
+        },
+        {type: 'separator'},
+        {
+          label: i18n.t('menu.edit', 'Toggle Good Move'),
+          accelerator: 'CmdOrCtrl+Shift+]',
+          click: () =>
+            sabaki.toggleMoveAnnotation(sabaki.state.treePosition, 'TE'),
+        },
+        {
+          label: i18n.t('menu.edit', 'Toggle Bad Move'),
+          accelerator: 'CmdOrCtrl+Shift+[',
+          click: () =>
+            sabaki.toggleMoveAnnotation(sabaki.state.treePosition, 'BM'),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.edit', '&Preferences…'),
           accelerator: 'CmdOrCtrl+,',
-          click: () => sabaki.openDrawer('preferences')
-        }
-      ]
+          click: () => sabaki.openDrawer('preferences'),
+        },
+      ],
     },
     {
       id: 'find',
@@ -300,7 +330,7 @@ exports.get = function(props = {}) {
           label: i18n.t('menu.find', 'Toggle &Find Mode'),
           accelerator: 'CmdOrCtrl+F',
           click: () =>
-            sabaki.setMode(sabaki.state.mode === 'find' ? 'play' : 'find')
+            sabaki.setMode(sabaki.state.mode === 'find' ? 'play' : 'find'),
         },
         {
           label: i18n.t('menu.find', 'Find &Next'),
@@ -309,9 +339,9 @@ exports.get = function(props = {}) {
             sabaki.setMode('find')
             sabaki.findMove(1, {
               vertex: sabaki.state.findVertex,
-              text: sabaki.state.findText
+              text: sabaki.state.findText,
             })
-          }
+          },
         },
         {
           label: i18n.t('menu.find', 'Find &Previous'),
@@ -320,9 +350,9 @@ exports.get = function(props = {}) {
             sabaki.setMode('find')
             sabaki.findMove(-1, {
               vertex: sabaki.state.findVertex,
-              text: sabaki.state.findText
+              text: sabaki.state.findText,
             })
-          }
+          },
         },
         {type: 'separator'},
         {
@@ -332,20 +362,20 @@ exports.get = function(props = {}) {
             sabaki.setComment(sabaki.state.treePosition, {
               hotspot:
                 sabaki.inferredState.gameTree.get(sabaki.state.treePosition)
-                  .data.HO == null
-            })
+                  .data.HO == null,
+            }),
         },
         {
           label: i18n.t('menu.find', 'Jump to Ne&xt Hotspot'),
           accelerator: 'F2',
-          click: () => sabaki.findHotspot(1)
+          click: () => sabaki.findHotspot(1),
         },
         {
           label: i18n.t('menu.find', 'Jump to Pre&vious Hotspot'),
           accelerator: 'Shift+F2',
-          click: () => sabaki.findHotspot(-1)
-        }
-      ]
+          click: () => sabaki.findHotspot(-1),
+        },
+      ],
     },
     {
       id: 'navigation',
@@ -354,71 +384,71 @@ exports.get = function(props = {}) {
         {
           label: i18n.t('menu.navigation', '&Back'),
           accelerator: 'Up',
-          click: () => sabaki.goStep(-1)
+          click: () => sabaki.goStep(-1),
         },
         {
           label: i18n.t('menu.navigation', '&Forward'),
           accelerator: 'Down',
-          click: () => sabaki.goStep(1)
+          click: () => sabaki.goStep(1),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.navigation', 'Go to &Previous Fork'),
           accelerator: 'CmdOrCtrl+Up',
-          click: () => sabaki.goToPreviousFork()
+          click: () => sabaki.goToPreviousFork(),
         },
         {
           label: i18n.t('menu.navigation', 'Go to &Next Fork'),
           accelerator: 'CmdOrCtrl+Down',
-          click: () => sabaki.goToNextFork()
+          click: () => sabaki.goToNextFork(),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.navigation', 'Go to Previous Commen&t'),
           accelerator: 'CmdOrCtrl+Shift+Up',
-          click: () => sabaki.goToComment(-1)
+          click: () => sabaki.goToComment(-1),
         },
         {
           label: i18n.t('menu.navigation', 'Go to Next &Comment'),
           accelerator: 'CmdOrCtrl+Shift+Down',
-          click: () => sabaki.goToComment(1)
+          click: () => sabaki.goToComment(1),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.navigation', 'Go to Be&ginning'),
           accelerator: 'Home',
-          click: () => sabaki.goToBeginning()
+          click: () => sabaki.goToBeginning(),
         },
         {
           label: i18n.t('menu.navigation', 'Go to &End'),
           accelerator: 'End',
-          click: () => sabaki.goToEnd()
+          click: () => sabaki.goToEnd(),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.navigation', 'Go to &Main Variation'),
           accelerator: 'CmdOrCtrl+Left',
-          click: () => sabaki.goToMainVariation()
+          click: () => sabaki.goToMainVariation(),
         },
         {
           label: i18n.t('menu.navigation', 'Go to Previous &Variation'),
           accelerator: 'Left',
-          click: () => sabaki.goToSiblingVariation(-1)
+          click: () => sabaki.goToSiblingVariation(-1),
         },
         {
           label: i18n.t('menu.navigation', 'Go to Next Va&riation'),
           accelerator: 'Right',
-          click: () => sabaki.goToSiblingVariation(1)
+          click: () => sabaki.goToSiblingVariation(1),
         },
         {
           label: i18n.t('menu.navigation', '&Decrement Downstream Variation'),
           accelerator: 'Shift+Left',
-          click: () => sabaki.changeDownstreamVariation(-1)
+          click: () => sabaki.changeDownstreamVariation(-1),
         },
         {
           label: i18n.t('menu.navigation', '&Increment Downstream Variation'),
           accelerator: 'Shift+Right',
-          click: () => sabaki.changeDownstreamVariation(1)
+          click: () => sabaki.changeDownstreamVariation(1),
         },
         {type: 'separator'},
         {
@@ -426,26 +456,26 @@ exports.get = function(props = {}) {
           accelerator: 'CmdOrCtrl+G',
           click: async () => {
             let value = await dialog.showInputBox(
-              i18n.t('menu.navigation', 'Enter a move number to go to')
+              i18n.t('menu.navigation', 'Enter a move number to go to'),
             )
             if (value == null) return
 
             sabaki.closeDrawer()
             sabaki.goToMoveNumber(value)
-          }
+          },
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.navigation', 'Go to Ne&xt Game'),
           accelerator: 'CmdOrCtrl+PageDown',
-          click: () => sabaki.goToSiblingGame(1)
+          click: () => sabaki.goToSiblingGame(1),
         },
         {
           label: i18n.t('menu.navigation', 'Go to Previou&s Game'),
           accelerator: 'CmdOrCtrl+PageUp',
-          click: () => sabaki.goToSiblingGame(-1)
-        }
-      ]
+          click: () => sabaki.goToSiblingGame(-1),
+        },
+      ],
     },
     {
       id: 'engines',
@@ -458,9 +488,9 @@ exports.get = function(props = {}) {
           click: () => {
             toggleSetting('view.show_leftsidebar')
             sabaki.setState(({showLeftSidebar}) => ({
-              showLeftSidebar: !showLeftSidebar
+              showLeftSidebar: !showLeftSidebar,
             }))
-          }
+          },
         },
         {type: 'separator'},
         {
@@ -470,20 +500,20 @@ exports.get = function(props = {}) {
             let syncerId =
               sabaki.lastAnalyzingEngineSyncerId ||
               sabaki.state.attachedEngineSyncers
-                .filter(syncer =>
-                  syncer.commands.some(x =>
-                    setting.get('engines.analyze_commands').includes(x)
-                  )
+                .filter((syncer) =>
+                  syncer.commands.some((x) =>
+                    setting.get('engines.analyze_commands').includes(x),
+                  ),
                 )
-                .map(syncer => syncer.id)[0]
+                .map((syncer) => syncer.id)[0]
 
             if (syncerId == null) {
               dialog.showMessageBox(
                 i18n.t(
                   'menu.engines',
-                  'None of the attached engines support analysis.'
+                  'None of the attached engines support analysis.',
                 ),
-                'info'
+                'info',
               )
               return
             }
@@ -493,16 +523,17 @@ exports.get = function(props = {}) {
             } else {
               sabaki.stopAnalysis()
             }
-          }
+          },
         },
-        // {\n          // label: !engineGameOngoing
-        //   ? i18n.t('menu.engines', 'Start Engine vs. Engine &Game')
-        //   : i18n.t('menu.engines', 'Stop Engine vs. Engine &Game'),
-        // accelerator: 'F5',
-        // click: () => {
-        //   sabaki.startStopEngineGame(sabaki.state.treePosition)
-        // }
-        // },
+        {
+          label: !engineGameOngoing
+            ? i18n.t('menu.engines', 'Start Engine vs. Engine &Game')
+            : i18n.t('menu.engines', 'Stop Engine vs. Engine &Game'),
+          accelerator: 'F5',
+          click: () => {
+            sabaki.startStopEngineGame(sabaki.state.treePosition)
+          },
+        },
         {
           label: i18n.t('menu.engines', 'Generate &Move'),
           accelerator: 'F10',
@@ -518,16 +549,16 @@ exports.get = function(props = {}) {
               dialog.showMessageBox(
                 i18n.t(
                   'menu.engines',
-                  'Please assign an engine to the player first.'
+                  'Please assign an engine to the player first.',
                 ),
-                'info'
+                'info',
               )
             }
 
             sabaki.generateMove(syncerId, sabaki.state.treePosition)
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     {
       id: 'tools',
@@ -537,27 +568,27 @@ exports.get = function(props = {}) {
           label: i18n.t('menu.tools', 'Toggle Auto&play Mode'),
           click: () =>
             sabaki.setMode(
-              sabaki.state.mode === 'autoplay' ? 'play' : 'autoplay'
-            )
+              sabaki.state.mode === 'autoplay' ? 'play' : 'autoplay',
+            ),
         },
         {
           label: i18n.t('menu.tools', 'Toggle &Guess Mode'),
           click: () =>
-            sabaki.setMode(sabaki.state.mode === 'guess' ? 'play' : 'guess')
+            sabaki.setMode(sabaki.state.mode === 'guess' ? 'play' : 'guess'),
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.tools', 'Clean &Markup…'),
-          click: () => sabaki.openDrawer('cleanmarkup')
+          click: () => sabaki.openDrawer('cleanmarkup'),
         },
         {
           label: i18n.t('menu.tools', '&Edit SGF Properties…'),
-          click: () => sabaki.openDrawer('advancedproperties')
+          click: () => sabaki.openDrawer('advancedproperties'),
         },
         ...(isRenderer && sabaki.pluginMenuItems.length > 0
           ? [{type: 'separator'}, ...sabaki.pluginMenuItems]
-          : [])
-      ]
+          : []),
+      ],
     },
     {
       id: 'view',
@@ -565,15 +596,78 @@ exports.get = function(props = {}) {
       submenu: [
         {
           label: i18n.t('menu.view', 'Toggle Menu &Bar'),
-          click: () => toggleSetting('view.show_menubar')
+          click: () => toggleSetting('view.show_menubar'),
         },
         {
           label: i18n.t('menu.view', 'Toggle &Full Screen'),
           accelerator:
             process.platform === 'darwin' ? 'CmdOrCtrl+Shift+F' : 'F11',
           click: () =>
-            sabaki.setState(({fullScreen}) => ({fullScreen: !fullScreen}))
+            sabaki.setState(({fullScreen}) => ({fullScreen: !fullScreen})),
         },
+        {
+          label: i18n.t('menu.view', 'Analysis Metric'),
+          submenu: [
+            {
+              label: i18n.t('menu.view', '&Win Rate'),
+              type: 'checkbox',
+              checked: analysisType === 'winrate',
+              accelerator: 'CmdOrCtrl+Shift+H',
+              click: () => {
+                setting.set(
+                  'board.analysis_type',
+                  setting.get('board.analysis_type') === 'winrate'
+                    ? 'scoreLead'
+                    : 'winrate',
+                )
+              },
+            },
+            {
+              label: i18n.t('menu.view', '&Score Lead'),
+              type: 'checkbox',
+              checked: analysisType === 'scoreLead',
+              accelerator: 'CmdOrCtrl+Shift+H',
+              click: () => {
+                setting.set(
+                  'board.analysis_type',
+                  setting.get('board.analysis_type') === 'scoreLead'
+                    ? 'winrate'
+                    : 'scoreLead',
+                )
+              },
+            },
+            {type: 'separator'},
+            {
+              label: i18n.t('menu.view', '&Absolute'),
+              type: 'checkbox',
+              checked: analysisValueType === 'absolute',
+              accelerator: 'CmdOrCtrl+Shift+V',
+              click: () => {
+                setting.set(
+                  'board.analysis_value_type',
+                  setting.get('board.analysis_value_type') === 'absolute'
+                    ? 'relative'
+                    : 'absolute',
+                )
+              },
+            },
+            {
+              label: i18n.t('menu.view', '&Relative'),
+              type: 'checkbox',
+              checked: analysisValueType === 'relative',
+              accelerator: 'CmdOrCtrl+Shift+V',
+              click: () => {
+                setting.set(
+                  'board.analysis_value_type',
+                  setting.get('board.analysis_value_type') === 'relative'
+                    ? 'absolute'
+                    : 'relative',
+                )
+              },
+            },
+          ],
+        },
+
         {type: 'separator'},
         {
           label: i18n.t('menu.view', 'Show &Coordinates'),
@@ -583,7 +677,7 @@ exports.get = function(props = {}) {
               accelerator: 'CmdOrCtrl+Shift+C',
               type: 'checkbox',
               checked: !showCoordinates,
-              click: () => toggleSetting('view.show_coordinates')
+              click: () => toggleSetting('view.show_coordinates'),
             },
             {type: 'separator'},
             {
@@ -593,7 +687,7 @@ exports.get = function(props = {}) {
               click: () => {
                 setting.set('view.show_coordinates', true)
                 setting.set('view.coordinates_type', 'A1')
-              }
+              },
             },
             {
               label: i18n.t('menu.view', '&1-1'),
@@ -602,7 +696,7 @@ exports.get = function(props = {}) {
               click: () => {
                 setting.set('view.show_coordinates', true)
                 setting.set('view.coordinates_type', '1-1')
-              }
+              },
             },
             {
               label: i18n.t('menu.view', '&Relative'),
@@ -611,7 +705,7 @@ exports.get = function(props = {}) {
               click: () => {
                 setting.set('view.show_coordinates', true)
                 setting.set('view.coordinates_type', 'relative')
-              }
+              },
             },
             {
               label: i18n.t('menu.view', '&All Alphabetic'),
@@ -620,89 +714,87 @@ exports.get = function(props = {}) {
               click: () => {
                 setting.set('view.show_coordinates', true)
                 setting.set('view.coordinates_type', 'all-alpha')
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
         {
           label: i18n.t('menu.view', 'Show Move N&umbers'),
-          type: 'checkbox',
-          checked: !!showMoveNumbers,
-          click: () => toggleSetting('view.show_move_numbers')
+          submenu: [
+            {
+              label: i18n.t('menu.view', '&Don’t Show'),
+              type: 'checkbox',
+              checked: !showMoveNumbers,
+              click: () => toggleSetting('view.show_move_numbers'),
+            },
+            {type: 'separator'},
+            {
+              label: i18n.t('menu.view', 'From Game Start'),
+              type: 'checkbox',
+              checked: !!showMoveNumbers && moveNumbersType === 'start',
+              click: () => {
+                setting.set('view.show_move_numbers', true)
+                setting.set('view.move_numbers_type', 'start')
+              },
+            },
+            {
+              label: i18n.t('menu.view', 'From Variation Start'),
+              type: 'checkbox',
+              checked: !!showMoveNumbers && moveNumbersType === 'variation',
+              click: () => {
+                setting.set('view.show_move_numbers', true)
+                setting.set('view.move_numbers_type', 'variation')
+              },
+            },
+            {
+              label: i18n.t('menu.view', 'From Hotspot'),
+              type: 'checkbox',
+              checked: !!showMoveNumbers && moveNumbersType === 'hotspot',
+              click: () => {
+                setting.set('view.show_move_numbers', true)
+                setting.set('view.move_numbers_type', 'hotspot')
+              },
+            },
+          ],
         },
         {
           label: i18n.t('menu.view', 'Show Move Colori&zation'),
           type: 'checkbox',
           checked: !!showMoveColorization,
-          click: () => toggleSetting('view.show_move_colorization')
+          click: () => toggleSetting('view.show_move_colorization'),
         },
         {
           label: i18n.t('menu.view', 'Show &Next Moves'),
           type: 'checkbox',
           checked: !!showNextMoves,
-          click: () => toggleSetting('view.show_next_moves')
+          click: () => toggleSetting('view.show_next_moves'),
         },
         {
           label: i18n.t('menu.view', 'Show &Sibling Variations'),
           type: 'checkbox',
           checked: !!showSiblings,
-          click: () => toggleSetting('view.show_siblings')
+          click: () => toggleSetting('view.show_siblings'),
         },
         {
           label: i18n.t('menu.view', 'Show &Heatmap'),
-          submenu: [
-            {
-              label: i18n.t('menu.view', '&Don’t Show'),
-              type: 'checkbox',
-              checked: !showAnalysis,
-              accelerator: 'CmdOrCtrl+H',
-              click: () => toggleSetting('board.show_analysis')
-            },
-            {type: 'separator'},
-            {
-              label: i18n.t('menu.view', 'Show &Win Rate'),
-              type: 'checkbox',
-              checked: !!showAnalysis && analysisType === 'winrate',
-              accelerator: 'CmdOrCtrl+Shift+H',
-              click: () => {
-                setting.set('board.show_analysis', true)
-                setting.set(
-                  'board.analysis_type',
-                  setting.get('board.analysis_type') === 'winrate'
-                    ? 'scoreLead'
-                    : 'winrate'
-                )
-              }
-            },
-            {
-              label: i18n.t('menu.view', 'Show &Score Lead'),
-              type: 'checkbox',
-              checked: !!showAnalysis && analysisType === 'scoreLead',
-              accelerator: 'CmdOrCtrl+Shift+H',
-              click: () => {
-                setting.set('board.show_analysis', true)
-                setting.set(
-                  'board.analysis_type',
-                  setting.get('board.analysis_type') === 'scoreLead'
-                    ? 'winrate'
-                    : 'scoreLead'
-                )
-              }
-            }
-          ]
+          type: 'checkbox',
+          checked: !!showAnalysis,
+          accelerator: 'CmdOrCtrl+H',
+          click: () => toggleSetting('board.show_analysis'),
         },
         {type: 'separator'},
         {
-          label: i18n.t('menu.view', 'Show &Winrate Graph'),
+          label: i18n.t('menu.view', 'Show &Analysis Graph'),
           type: 'checkbox',
           checked: !!showWinrateGraph,
           enabled: !!showGameGraph || !!showCommentBox,
+          accelerator: 'CmdOrCtrl+Shift+G',
           click: () => {
             toggleSetting('view.show_winrategraph')
             sabaki.setState(({showWinrateGraph}) => ({
-              showWinrateGraph: !showWinrateGraph
+              showWinrateGraph: !showWinrateGraph,
             }))
-          }
+          },
         },
         {
           label: i18n.t('menu.view', 'Show Game &Tree'),
@@ -712,9 +804,9 @@ exports.get = function(props = {}) {
           click: () => {
             toggleSetting('view.show_graph')
             sabaki.setState(({showGameGraph}) => ({
-              showGameGraph: !showGameGraph
+              showGameGraph: !showGameGraph,
             }))
-          }
+          },
         },
         {
           label: i18n.t('menu.view', 'Show Co&mments'),
@@ -724,9 +816,9 @@ exports.get = function(props = {}) {
           click: () => {
             toggleSetting('view.show_comments')
             sabaki.setState(({showCommentBox}) => ({
-              showCommentBox: !showCommentBox
+              showCommentBox: !showCommentBox,
             }))
-          }
+          },
         },
         {type: 'separator'},
         {
@@ -738,8 +830,8 @@ exports.get = function(props = {}) {
               click: () =>
                 setting.set(
                   'app.zoom_factor',
-                  setting.get('app.zoom_factor') + 0.1
-                )
+                  setting.get('app.zoom_factor') + 0.1,
+                ),
             },
             {
               label: i18n.t('menu.view', '&Decrease'),
@@ -747,15 +839,15 @@ exports.get = function(props = {}) {
               click: () =>
                 setting.set(
                   'app.zoom_factor',
-                  Math.max(0, setting.get('app.zoom_factor') - 0.1)
-                )
+                  Math.max(0, setting.get('app.zoom_factor') - 0.1),
+                ),
             },
             {
               label: i18n.t('menu.view', '&Reset'),
               accelerator: 'CmdOrCtrl+0',
-              click: () => setting.set('app.zoom_factor', 1)
-            }
-          ]
+              click: () => setting.set('app.zoom_factor', 1),
+            },
+          ],
         },
         {
           label: i18n.t('menu.view', 'T&ransform Board'),
@@ -763,81 +855,81 @@ exports.get = function(props = {}) {
             {
               label: i18n.t('menu.tools', 'Rotate &Anticlockwise'),
               accelerator: 'CmdOrCtrl+Alt+Left',
-              click: () => sabaki.pushBoardTransformation('rrr')
+              click: () => sabaki.pushBoardTransformation('rrr'),
             },
             {
               label: i18n.t('menu.tools', 'Rotate &Clockwise'),
               accelerator: 'CmdOrCtrl+Alt+Right',
-              click: () => sabaki.pushBoardTransformation('r')
+              click: () => sabaki.pushBoardTransformation('r'),
             },
             {
               label: i18n.t('menu.tools', '&Flip Horizontally'),
               accelerator: 'CmdOrCtrl+Alt+Down',
-              click: () => sabaki.pushBoardTransformation('f')
+              click: () => sabaki.pushBoardTransformation('f'),
             },
             {
               label: i18n.t('menu.tools', 'Flip &Vertically'),
               accelerator: 'CmdOrCtrl+Alt+Shift+Down',
-              click: () => sabaki.pushBoardTransformation('rrf')
+              click: () => sabaki.pushBoardTransformation('rrf'),
             },
             {
               label: i18n.t('menu.tools', '&Invert Colors'),
               accelerator: 'CmdOrCtrl+Alt+Up',
-              click: () => sabaki.pushBoardTransformation('i')
+              click: () => sabaki.pushBoardTransformation('i'),
             },
             {
               label: i18n.t('menu.tools', '&Reset'),
               accelerator: 'CmdOrCtrl+Alt+0',
-              click: () => sabaki.setBoardTransformation('')
-            }
-          ]
-        }
-      ]
+              click: () => sabaki.setBoardTransformation(''),
+            },
+          ],
+        },
+      ],
     },
     process.platform === 'darwin' && {
       submenu: [
         {
           label: i18n.t('menu.file', 'New &Window'),
           clickMain: 'newWindow',
-          neverDisable: true
+          neverDisable: true,
         },
         {role: 'minimize'},
         {role: 'close'},
         {type: 'separator'},
-        {role: 'front'}
+        {role: 'front'},
       ],
-      role: 'window'
+      role: 'window',
     },
     {
       id: 'help',
       label: i18n.t('menu.help', '&Help'),
       submenu: [
         {
-          label: i18n.t('menu.help', p => `${p.appName} v${p.version}`, {
+          label: i18n.t('menu.help', (p) => `${p.appName} v${p.version}`, {
             appName: app.name,
-            version: app.getVersion()
+            version: app.getVersion(),
           }),
-          enabled: false
+          enabled: false,
         },
         {
           label: i18n.t('menu.help', 'Check for &Updates'),
           clickMain: 'checkForUpdates',
-          neverDisable: true
+          neverDisable: true,
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.help', 'GitHub &Repository'),
           click: () =>
-            shell.openExternal(`https://github.com/SabakiHQ/${sabaki.appName}`)
+            shell.openExternal(`https://github.com/SabakiHQ/${sabaki.appName}`),
         },
         {
           label: i18n.t('menu.help', 'Report &Issue'),
           click: () =>
             shell.openExternal(
-              `https://github.com/SabakiHQ/${sabaki.appName}/issues`
-            )
-        }
-      ]
+              `https://github.com/SabakiHQ/${sabaki.appName}/issues`,
+            ),
+        },
+      ],
     },
     setting.get('debug.dev_tools') && {
       id: 'developer',
@@ -846,55 +938,55 @@ exports.get = function(props = {}) {
         {
           label: i18n.t('menu.developer', 'Open Settings &Folder'),
           click: () => shell.showItemInFolder(setting.settingsPath),
-          neverDisable: true
+          neverDisable: true,
         },
         {
           label: i18n.t('menu.developer', 'Toggle &Developer Tools'),
           click: () => sabaki.window.webContents.toggleDevTools(),
-          neverDisable: true
+          neverDisable: true,
         },
         {type: 'separator'},
         {
           label: i18n.t('menu.developer', 'Load &Language File…'),
-          click: () => {
+          click: async () => {
             let t = i18n.context('menu.developer')
 
-            dialog.showMessageBox(
+            await dialog.showMessageBox(
               t(
                 [
                   'A language file is basically a JavaScript file and can be used to execute arbitrary code on your computer.',
-                  'It can be extremely dangerous, so it is recommended to only load language files from authors you trust.'
-                ].join('\n\n')
+                  'It can be extremely dangerous, so it is recommended to only load language files from authors you trust.',
+                ].join('\n\n'),
               ),
               'warning',
-              [t('I understand')]
+              [t('I understand')],
             )
 
-            let result = dialog.showOpenDialog({
+            let result = await dialog.showOpenDialog({
               properties: ['openFile'],
               filters: [
                 {
                   name: i18n.t('menu.developer', 'JavaScript Files'),
-                  extensions: ['js']
-                }
-              ]
+                  extensions: ['js'],
+                },
+              ],
             })
             if (!result || result.length === 0) return
 
             i18n.loadFile(result[0])
-          }
+          },
         },
         {
           label: i18n.t('menu.developer', '&Unload Language File'),
           click: () => {
             i18n.loadFile(null)
-          }
-        }
-      ]
-    }
-  ].filter(x => !!x)
+          },
+        },
+      ],
+    },
+  ].filter((x) => !!x)
 
-  let findMenuItem = str => data.find(item => item.id === str)
+  let findMenuItem = (str) => data.find((item) => item.id === str)
 
   // Modify menu for macOS
 
@@ -912,7 +1004,7 @@ exports.get = function(props = {}) {
     let fileMenu = findMenuItem('file')
     let preferenceItem = fileMenu.submenu.splice(
       fileMenu.submenu.length - 4,
-      4
+      4,
     )[1]
 
     appMenu.push(
@@ -926,19 +1018,19 @@ exports.get = function(props = {}) {
           {role: 'cut'},
           {role: 'copy'},
           {role: 'paste'},
-          {role: 'selectall'}
-        ]
+          {role: 'selectall'},
+        ],
       },
       {type: 'separator'},
       {role: 'hide'},
       {role: 'hideothers'},
       {type: 'separator'},
-      {role: 'quit'}
+      {role: 'quit'},
     )
 
     data.unshift({
       label: app.name,
-      submenu: appMenu
+      submenu: appMenu,
     })
 
     // Remove 'Toggle Menu Bar' menu item

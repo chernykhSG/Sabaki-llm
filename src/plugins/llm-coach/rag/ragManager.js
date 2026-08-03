@@ -2,7 +2,6 @@ var vectorStore = require('./vectorStore');
 var embeddingGenerator = require('./embeddingGenerator');
 var { promises: fs } = require('fs');
 var path = require('path');
-var { app } = require('electron').remote || require('@electron/remote');
 
 // 为vectorStore添加持久化配置
 vectorStore.setPersistence = function(dbPath) {
@@ -15,7 +14,7 @@ class RAGManager {
   constructor() {
     this.sessionId = null;
     this.isInitialized = false;
-    this.appDataPath = app ? app.getPath('userData') : (process.env.HOME || process.env.USERPROFILE);
+    this.appDataPath = window.sabaki.setting.userDataDirectory || (process.env.HOME || process.env.USERPROFILE);
     this.memoryStorePath = path.join(this.appDataPath, '.sabaki', 'rag_memory');
     this.vectorDbPath = path.join(this.memoryStorePath, 'vector_db');
     this.sessionIndexPath = path.join(this.memoryStorePath, 'sessions.json');

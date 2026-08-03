@@ -10,7 +10,6 @@ import FindBar from './bars/FindBar.js'
 
 import sabaki from '../modules/sabaki.js'
 import * as gametree from '../modules/gametree.js'
-import * as setting from '../setting.js'
 
 export default class MainView extends Component {
   constructor(props) {
@@ -21,14 +20,14 @@ export default class MainView extends Component {
       sabaki.setPlayer(treePosition, -currentPlayer)
     }
 
-    this.handleToolButtonClick = evt => {
+    this.handleToolButtonClick = (evt) => {
       sabaki.setState({selectedTool: evt.tool})
     }
 
-    this.handleFindButtonClick = evt =>
+    this.handleFindButtonClick = (evt) =>
       sabaki.findMove(evt.step, {
         vertex: this.props.findVertex,
-        text: this.props.findText
+        text: this.props.findText,
       })
 
     this.handleGobanVertexClick = this.handleGobanVertexClick.bind(this)
@@ -38,8 +37,9 @@ export default class MainView extends Component {
   componentDidMount() {
     // Pressing Ctrl/Cmd should show crosshair cursor on Goban in edit mode
 
-    // 将匿名函数改为类方法以便在卸载时移除
-    this.handleKeyDown = evt => {
+    // Именованные методы вместо анонимных функций, чтобы можно было снять
+    // обработчики при размонтировании
+    this.handleKeyDown = (evt) => {
       if (evt.key !== 'Control' && evt.key !== 'Meta') return
 
       if (this.props.mode === 'edit') {
@@ -47,7 +47,7 @@ export default class MainView extends Component {
       }
     }
 
-    this.handleKeyUp = evt => {
+    this.handleKeyUp = (evt) => {
       if (evt.key !== 'Control' && evt.key !== 'Meta') return
 
       if (this.props.mode === 'edit') {
@@ -58,22 +58,15 @@ export default class MainView extends Component {
     document.addEventListener('keydown', this.handleKeyDown)
     document.addEventListener('keyup', this.handleKeyUp)
 
-    // 监听设置变化事件，特别是坐标类型的变化
-    this.handleSettingChange = evt => {
-      console.log('设置变化事件捕获:', evt.key, '=>', evt.value)
-      // 对于任何设置变化，都强制更新组件
+    // Реагируем на изменение настроек (например, типа координат) —
+    // принудительно перерисовываем компонент
+    this.handleSettingChange = (evt) => {
       this.forceUpdate()
     }
 
-    // 简化事件监听器注册方式，直接使用窗口ID作为第一个参数
-    const remote = require('@electron/remote')
-    const windowId = remote.getCurrentWindow().id.toString()
-
-    // 直接使用setting.events.on注册事件监听器
-    setting.events.on(windowId, 'change', this.handleSettingChange)
-
-    // 存储窗口ID以便在卸载时使用
-    this.windowId = windowId
+    this.unsubscribeSettingChange = window.sabaki.setting.onDidChange(
+      this.handleSettingChange,
+    )
   }
 
   componentWillReceiveProps(nextProps) {
@@ -83,22 +76,10 @@ export default class MainView extends Component {
   }
 
   componentWillUnmount() {
-    // 清理键盘事件监听器
     document.removeEventListener('keydown', this.handleKeyDown)
     document.removeEventListener('keyup', this.handleKeyUp)
 
-    // 虽然setting.js的events对象没有直接提供removeListener方法
-    // 但我们可以通过重新创建事件发射器来清理监听器
-    if (this.windowId) {
-      const {remote} = require('electron')
-      const currentWindows = remote.BrowserWindow.getAllWindows()
-      // 检查窗口是否仍然存在
-      if (
-        !currentWindows.some(window => window.id.toString() === this.windowId)
-      ) {
-        console.log('窗口已关闭，事件监听器将被自动清理')
-      }
-    }
+    if (this.unsubscribeSettingChange) this.unsubscribeSettingChange()
   }
 
   handleGobanVertexClick(evt) {
@@ -132,11 +113,13 @@ export default class MainView extends Component {
 
       highlightVertices,
       analysisType,
+      analysisValueType,
       showAnalysis,
       showCoordinates,
       coordinatesType, // 从props中解构coordinatesType
       showMoveColorization,
       showMoveNumbers,
+      moveNumbersType,
       showNextMoves,
       showSiblings,
       fuzzyStonePlacement,
@@ -145,9 +128,9 @@ export default class MainView extends Component {
 
       selectedTool,
       findText,
-      findVertex
+      findVertex,
     },
-    {gobanCrosshair}
+    {gobanCrosshair},
   ) {
     let node = gameTree.get(treePosition)
     let board = gametree.getBoard(gameTree, treePosition)
@@ -158,7 +141,7 @@ export default class MainView extends Component {
     if (['scoring', 'estimator'].includes(mode)) {
       paintMap = areaMap
     } else if (mode === 'guess') {
-      paintMap = [...Array(board.height)].map(_ => Array(board.width).fill(0))
+      paintMap = [...Array(board.height)].map((_) => Array(board.width).fill(0))
 
       for (let [x, y] of blockedGuesses) {
         paintMap[y][x] = 1
@@ -171,7 +154,7 @@ export default class MainView extends Component {
 
       h(
         'main',
-        {ref: el => (this.mainElement = el)},
+        {ref: (el) => (this.mainElement = el)},
 
         h(Goban, {
           gameTree,
@@ -180,6 +163,7 @@ export default class MainView extends Component {
           highlightVertices:
             findVertex && mode === 'find' ? [findVertex] : highlightVertices,
           analysisType,
+          analysisValueType,
           analysis:
             showAnalysis &&
             analysisTreePosition != null &&
@@ -198,6 +182,7 @@ export default class MainView extends Component {
           coordinatesType: coordinatesType,
           showMoveColorization,
           showMoveNumbers: mode !== 'edit' && showMoveNumbers,
+          moveNumbersType,
           showNextMoves: mode !== 'guess' && showNextMoves,
           showSiblings: mode !== 'guess' && showSiblings,
           fuzzyStonePlacement,
@@ -211,8 +196,8 @@ export default class MainView extends Component {
           transformation: boardTransformation,
 
           onVertexClick: this.handleGobanVertexClick,
-          onLineDraw: this.handleGobanLineDraw
-        })
+          onLineDraw: this.handleGobanLineDraw,
+        }),
       ),
 
       h(
@@ -222,34 +207,34 @@ export default class MainView extends Component {
           mode,
           engineSyncers: [
             this.props.blackEngineSyncerId,
-            this.props.whiteEngineSyncerId
-          ].map(id =>
-            this.props.attachedEngineSyncers.find(syncer => syncer.id === id)
+            this.props.whiteEngineSyncerId,
+          ].map((id) =>
+            this.props.attachedEngineSyncers.find((syncer) => syncer.id === id),
           ),
           playerNames: gameInfo.playerNames,
           playerRanks: gameInfo.playerRanks,
-          playerCaptures: [1, -1].map(sign => board.getCaptures(sign)),
+          playerCaptures: [1, -1].map((sign) => board.getCaptures(sign)),
           currentPlayer,
           showHotspot: node.data.HO != null,
-          onCurrentPlayerClick: this.handleTogglePlayer
+          onCurrentPlayerClick: this.handleTogglePlayer,
         }),
 
         h(EditBar, {
           mode,
           selectedTool,
-          onToolButtonClick: this.handleToolButtonClick
+          onToolButtonClick: this.handleToolButtonClick,
         }),
 
         h(GuessBar, {
           mode,
-          treePosition
+          treePosition,
         }),
 
         h(AutoplayBar, {
           mode,
           gameTree,
           gameCurrents: gameCurrents[gameIndex],
-          treePosition
+          treePosition,
         }),
 
         h(ScoringBar, {
@@ -259,7 +244,7 @@ export default class MainView extends Component {
           scoreBoard,
           areaMap,
           komi,
-          handicap
+          handicap,
         }),
 
         h(ScoringBar, {
@@ -269,15 +254,15 @@ export default class MainView extends Component {
           scoreBoard,
           areaMap,
           komi,
-          handicap
+          handicap,
         }),
 
         h(FindBar, {
           mode,
           findText,
-          onButtonClick: this.handleFindButtonClick
-        })
-      )
+          onButtonClick: this.handleFindButtonClick,
+        }),
+      ),
     )
   }
 }
