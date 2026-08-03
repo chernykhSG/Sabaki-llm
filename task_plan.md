@@ -1,23 +1,20 @@
 # Task Plan: Плагинная архитектура для LLM-слоя + подготовка к обновлению апстрима
 
 ## Goal
-Физически вынести весь LLM/агентский функционал в `src/plugins/llm-coach/`
-за узкую точку подключения (`sabaki.registerPlugin`), чтобы в будущем ядро
-Sabaki можно было мерджить с апстримом SabakiHQ/Sabaki с минимумом
-конфликтов — без самого merge в этом заходе.
+Часть 1 (завершена, 2026-08-02): физически вынести весь LLM/агентский
+функционал в `src/plugins/llm-coach/` за узкую точку подключения
+(`sabaki.registerPlugin`).
+
+Часть 2 (начата 2026-08-03, см. Phase 6+): собственно `git merge
+upstream/v0.60.2` + миграция `@electron/remote` → IPC в 8 plugin-файлах, по
+runbook в `docs/guides/upstream-merge.md`. Пользователь подтвердил старт.
 
 ## Next Step
-Сессия по плагинной архитектуре закрыта (решение пользователя, 2026-08-02).
-Следующий шаг — отдельный будущий проект: `git merge upstream/v0.60.2` +
-миграция `@electron/remote` → IPC, по runbook в
-`docs/guides/upstream-merge.md`. Ручную проверку в приложении (AI Chat,
-Game Review, русский интерфейс) пользователь сделает одним заходом сразу
-после этого merge, не сейчас.
+Создать ветку `merge/upstream-v0.60.2`, выполнить `git merge upstream/v0.60.2
+--no-ff`, разобрать конфликты по горячим точкам из runbook.
 
 ## Current Phase
-Завершено. Этот файл остаётся в репозитории как запись для будущей сессии,
-которая возьмётся за merge — начинать оттуда с чтения findings.md и
-docs/guides/upstream-merge.md.
+Phase 6
 
 ## Phases
 
@@ -92,11 +89,38 @@ docs/guides/upstream-merge.md.
 - [x] `git push` после каждого коммита
 - **Status:** complete (кроме ручной проверки в приложении — за пользователем)
 
+### Phase 6: git merge upstream/v0.60.2
+- [ ] Ветка `merge/upstream-v0.60.2` от текущего `master` (`29724d47`)
+- [ ] `git merge upstream/v0.60.2 --no-ff`
+- [ ] Разобрать конфликты по горячим точкам (см. `docs/guides/upstream-merge.md`):
+      `package.json`/`package-lock.json`, `src/main.js`, `src/modules/sabaki.js`,
+      `src/components/App.js`, `src/menu.js`, `src/components/DrawerManager.js`,
+      `src/i18n.js`
+- **Status:** pending
+
+### Phase 7: Миграция @electron/remote → IPC в 8 plugin-файлах
+- [ ] Изучить новый IPC-паттерн, который принёс апстрим (посмотреть на
+      обновлённые core-файлы после merge)
+- [ ] Мигрировать: `ai.js`, `aiManager.js`, `promptManager.js`, `mcpHelper.js`,
+      `pluginEngineAdapter.js`, `gameReviewer.js`, `GameReviewDrawer.js`,
+      `ragManager.js` (список из runbook, финально сверить по фактическому
+      использованию `@electron/remote` после merge)
+- **Status:** pending
+
+### Phase 8: Верификация после merge
+- [ ] `npm run bundle`, `node run_tests.js`
+- [ ] Ручная проверка в приложении (`npm start`/`npm run watch-dev`):
+      SGF/GIB/NGF/UGF импорт-экспорт, синхронизация движков, GTP-консоль,
+      доска, AI Chat, Game Review, русский интерфейс — одним заходом, как
+      договорились
+- [ ] Слияние `merge/upstream-v0.60.2` в `master`, push
+- **Status:** pending
+
 ## Key Questions
 1. Нужно ли переносить `llm_prompts/` и docs-файлы в этот же заход? — Нет,
    осознанно отложено (см. план, раздел "Не входит").
-2. Нужно ли делать сам `git merge upstream/v0.60.2` сейчас? — Нет, отдельный
-   Phase 2 проекта (не этого файла), после стабилизации этого инкремента.
+2. Нужно ли делать сам `git merge upstream/v0.60.2` сейчас? — Да, пользователь
+   подтвердил 2026-08-03 (см. Phase 6+).
 
 ## Decisions Made
 | Decision | Rationale |
