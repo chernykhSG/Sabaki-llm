@@ -398,21 +398,37 @@ style/index.css
 Все Phase 6 (merge) + Phase 7 (миграция remote→IPC) изменения застейджены,
 но ЕЩЁ НЕ закоммичены — merge остаётся открытым (`MERGE_HEAD` присутствует).
 
+### Обновление 4: merge закоммичен, ручная проверка невозможна из песочницы
+Merge закоммичен на ветке `merge/upstream-v0.60.2` (коммит `d77c4446`) —
+включает и разрешение всех 19 конфликтов, и Phase 7 (миграция remote→IPC).
+
+Попытка smoke-теста через `npm start` из Bash-инструмента показала
+`TypeError: Cannot read properties of undefined (reading 'on')` на
+`app.on('before-quit', ...)` в `main.js:379`. Диагностировано (НЕ баг в
+коде): в этом sandboxed bash-окружении задана переменная
+`ELECTRON_RUN_AS_NODE=1` (подтверждено `env | grep -i electron`) — при
+этой переменной `electron ./` запускает обычный Node.js вместо реального
+Electron-рантайма, и `require('electron')` возвращает просто путь к
+бинарнику (строку) вместо объекта с `app`/`BrowserWindow`/и т.д. — отсюда
+`undefined.on`. Это ограничение окружения агента, специально
+предотвращающее запуск реальных GUI-приложений из песочницы, а не
+регрессия от merge. Реальный запуск и интерактивная проверка возможны
+ТОЛЬКО в обычном терминале пользователя (не через Claude Code Bash tool).
+
 ### Next Step при возврате к этой сессии
-1. Закоммитить merge (`git commit`, НЕ squash, НЕ amend) — этот коммит
-   включит и разрешение конфликтов, и Phase 7 (так и планировалось в
-   task_plan.md: миграция remote→IPC делается ДО коммита merge).
-2. `npm start`/`npm run watch-dev` — ручная проверка в реальном приложении
-   ОДНИМ заходом (как договорились с пользователем, отложив это с прошлой
-   сессии): SGF/GIB/NGF/UGF импорт-экспорт, синхронизация движков,
-   GTP-консоль, доска, AI Chat, Game Review, русский интерфейс, Preferences
-   (все вкладки), закрытие окна (проверить исправленный `beforeunload`).
-3. Слияние ветки `merge/upstream-v0.60.2` в `master`, push (после
-   подтверждения пользователя).
-4. Опционально: просмотреть новые файлы апстрима на пересечения —
-   `src/modules/analysis.js` vs `gameReviewer.js`/`gameReviewMath.js`,
-   `e2e/*.spec.js`+`playwright.config.js` — не обязательно интегрировать
-   сейчас, это отдельная будущая задача.
+1. **Ручная проверка — за пользователем**, как и договаривались:
+   `npm start` или `npm run watch-dev` в собственном терминале (не через
+   агента). Проверить: SGF/GIB/NGF/UGF импорт-экспорт, синхронизация
+   движков, GTP-консоль, доска, AI Chat, Game Review, русский интерфейс,
+   Preferences (все вкладки — General/Themes/Engines), закрытие окна
+   (исправленный `beforeunload`, убедиться что окно закрывается без
+   зависаний).
+2. После подтверждения пользователя — слияние ветки
+   `merge/upstream-v0.60.2` в `master`, push.
+3. Опционально (отдельная будущая задача, не блокирует merge): просмотреть
+   новые файлы апстрима на пересечения — `src/modules/analysis.js` vs
+   `gameReviewer.js`/`gameReviewMath.js`, `e2e/*.spec.js`+
+   `playwright.config.js`.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

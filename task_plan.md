@@ -10,13 +10,15 @@ upstream/v0.60.2` + миграция `@electron/remote` → IPC в 8 plugin-фа
 runbook в `docs/guides/upstream-merge.md`. Пользователь подтвердил старт.
 
 ## Next Step
-Phase 7 завершена (9 файлов мигрированы, `enableRemoteModule` и
-`@electron/remote` зависимость убраны, bundle+tests чисто). Осталось:
-закоммитить merge (единым коммитом, включающим Phase 6+7), сделать ручную
-проверку в приложении, слить ветку в master, push.
+Merge закоммичен (`d77c4446`, ветка `merge/upstream-v0.60.2`), включает
+Phase 6 (разрешение конфликтов) + Phase 7 (миграция remote→IPC).
+Автоматический smoke-тест через агента невозможен — sandbox выставляет
+`ELECTRON_RUN_AS_NODE=1`, что ломает `require('electron')` (не баг кода,
+см. progress.md). **Ручная проверка в приложении — за пользователем**, в
+своём терминале. После неё — слияние ветки в master и push.
 
 ## Current Phase
-Phase 8 (коммит merge + ручная проверка + финальный push)
+Phase 8 (ждём ручную проверку пользователя, затем merge в master + push)
 
 ## Phases
 
